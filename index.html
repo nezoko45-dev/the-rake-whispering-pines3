@@ -1,1 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#050607" />
+  <meta name="description" content="The Rake: Whispering Pines" />
+  <title>The Rake — Whispering Pines</title>
+  <style>
+    :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: #030506; overflow: hidden; }
+    body { color: #eee; }
+    #app { position: fixed; inset: 0; background: radial-gradient(circle at 50% 35%, #16231d 0, #08100d 32%, #020304 75%); }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle, transparent 35%, rgba(0,0,0,.42) 72%, rgba(0,0,0,.88) 100%); }
+    .topbar { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 22px 28px; background: linear-gradient(#020304cc, transparent); }
+    .brand { letter-spacing: .18em; font-size: 12px; text-transform: uppercase; color: #a7b7ad; }
+    .brand strong { display: block; margin-top: 3px; font-size: 20px; color: #eee; letter-spacing: .08em; }
+    .night { padding: 8px 12px; border: 1px solid #435047; border-radius: 999px; background: #0a100dba; color: #c7d0ca; font-size: 12px; }
+    .hud { position: absolute; left: 28px; bottom: 28px; width: min(360px, calc(100vw - 56px)); padding: 18px; border: 1px solid #364139; border-radius: 14px; background: #060908d9; backdrop-filter: blur(10px); box-shadow: 0 15px 50px #0008; }
+    .hud h1 { margin: 0 0 6px; font-size: 22px; }
+    .hud p { margin: 0 0 16px; color: #9ca79f; font-size: 13px; line-height: 1.5; }
+    .bar { height: 8px; background: #18201b; border-radius: 20px; overflow: hidden; }
+    .bar span { display: block; height: 100%; width: 100%; background: #b6c5bb; transition: width .2s; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+    .stat { padding: 10px; border: 1px solid #29332d; border-radius: 9px; background: #0b100d; }
+    .stat small { display: block; color: #78847c; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    .stat b { display: block; margin-top: 3px; font-size: 14px; }
+    .controls { position: absolute; right: 28px; bottom: 28px; text-align: right; color: #7e8a82; font-size: 11px; line-height: 1.8; }
+    .controls kbd { display: inline-block; min-width: 24px; padding: 1px 6px; border: 1px solid #3a443d; border-bottom-width: 2px; border-radius: 5px; color: #c2cbc5; background: #0b100d; text-align: center; }
+    .start { position: absolute; inset: 0; display: grid; place-items: center; background: #020403aa; backdrop-filter: blur(3px); transition: opacity .35s; }
+    .card { width: min(520px, calc(100vw - 40px)); padding: 34px; text-align: center; border: 1px solid #3b473f; border-radius: 18px; background: #070a08e8; box-shadow: 0 30px 100px #000c; }
+    .card .eyebrow { color: #89968e; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; }
+    .card h2 { margin: 10px 0; font-size: clamp(32px, 7vw, 58px); letter-spacing: .06em; }
+    .card p { color: #929d96; line-height: 1.6; margin: 0 auto 24px; max-width: 430px; }
+    button { border: 0; border-radius: 9px; padding: 12px 22px; background: #d7dfda; color: #07100b; font-weight: 800; cursor: pointer; }
+    button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .hidden { opacity: 0; pointer-events: none; }
+    @media (max-width: 650px) { .controls { display: none; } .topbar { padding: 16px; } .hud { left: 16px; bottom: 16px; width: calc(100vw - 32px); } }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <canvas id="scene" aria-label="Whispering Pines game scene"></canvas>
+    <div class="vignette"></div>
 
+    <header class="topbar">
+      <div class="brand">Whispering Pines<strong>THE RAKE</strong></div>
+      <div class="night" id="clock">NIGHT 00:00</div>
+    </header>
+
+    <section class="hud" aria-live="polite">
+      <h1>Survive the night.</h1>
+      <p id="message">Something is moving between the trees.</p>
+      <div class="bar" aria-label="Health"><span id="health"></span></div>
+      <div class="stats">
+        <div class="stat"><small>Health</small><b id="healthText">100%</b></div>
+        <div class="stat"><small>Threat</small><b id="threat">LOW</b></div>
+        <div class="stat"><small>Status</small><b id="status">READY</b></div>
+      </div>
+    </section>
+
+    <div class="controls">
+      <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</div>
+      <div><kbd>SHIFT</kbd> sprint &nbsp; <kbd>SPACE</kbd> interact</div>
+    </div>
+
+    <div class="start" id="start">
+      <div class="card">
+        <div class="eyebrow">Whispering Pines</div>
+        <h2>THE RAKE</h2>
+        <p>A deployable browser build is running. Enter the forest to start the interactive scene.</p>
+        <button id="play">ENTER THE FOREST</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+    const start = document.getElementById('start');
+    const play = document.getElementById('play');
+    const health = document.getElementById('health');
+    const healthText = document.getElementById('healthText');
+    const threat = document.getElementById('threat');
+    const status = document.getElementById('status');
+    const message = document.getElementById('message');
+    const clock = document.getElementById('clock');
+    const keys = {};
+    let running = false, hp = 100, t = 0, x = 0, y = 0;
+
+    addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (e.code === 'Space') e.preventDefault(); });
+    addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+    play.onclick = () => { running = true; start.classList.add('hidden'); status.textContent = 'ALIVE'; message.textContent = 'Stay alert. The forest is listening.'; };
+
+    function resize() { const d = devicePixelRatio || 1; canvas.width = innerWidth * d; canvas.height = innerHeight * d; ctx.setTransform(d,0,0,d,0,0); }
+    addEventListener('resize', resize); resize();
+
+    function tree(px, py, s, sway) {
+      const ground = innerHeight * .72 + py;
+      ctx.save(); ctx.translate(px + sway, ground); ctx.scale(s, s);
+      ctx.fillStyle = '#111814'; ctx.fillRect(-7, -125, 14, 125);
+      ctx.fillStyle = '#0a110d';
+      ctx.beginPath(); ctx.moveTo(0,-210); ctx.lineTo(-65,-105); ctx.lineTo(-38,-108); ctx.lineTo(-82,-45); ctx.lineTo(82,-45); ctx.lineTo(38,-108); ctx.lineTo(65,-105); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+
+    function draw() {
+      const w = innerWidth, h = innerHeight;
+      ctx.clearRect(0,0,w,h);
+      const g = ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#060c0a'); g.addColorStop(.52,'#101b16'); g.addColorStop(1,'#050806'); ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+      // moon
+      ctx.globalAlpha=.6; ctx.fillStyle='#b9c3bd'; ctx.beginPath(); ctx.arc(w*.76,h*.2,42,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;
+      // fog bands
+      for(let i=0;i<5;i++){ ctx.fillStyle=`rgba(150,170,158,${.025+i*.006})`; ctx.beginPath(); ctx.ellipse(w*(.2+i*.18),h*(.55+i*.045),w*.32,h*.055,0,0,Math.PI*2); ctx.fill(); }
+      // forest layers
+      for(let i=0;i<22;i++) tree((i*137+w*.1)% (w+220)-110, i%3*18, .55+(i%5)*.13, Math.sin(t*.0005+i)*2);
+      ctx.fillStyle='#080c09'; ctx.beginPath(); ctx.moveTo(0,h*.74); ctx.lineTo(w*.2,h*.67); ctx.lineTo(w*.48,h*.75); ctx.lineTo(w*.7,h*.65); ctx.lineTo(w,h*.73); ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath(); ctx.fill();
+      // player marker / flashlight
+      const px=w/2+x*.35, py=h*.63+y*.2;
+      const beam=ctx.createRadialGradient(px,py,10,px,py,Math.min(w,h)*.42); beam.addColorStop(0,'rgba(210,225,215,.12)'); beam.addColorStop(1,'rgba(210,225,215,0)'); ctx.fillStyle=beam; ctx.fillRect(0,0,w,h);
+      ctx.fillStyle='#cbd4ce'; ctx.beginPath(); ctx.arc(px,py,3,0,Math.PI*2); ctx.fill();
+      // distant eyes when threat rises
+      const danger=Math.max(0, Math.sin(t*.00035)*.5+.5); if(running && danger>.76){ ctx.fillStyle='rgba(210,220,214,.75)'; ctx.fillRect(w*.56,h*.42,4,3); ctx.fillRect(w*.575,h*.42,4,3); }
+    }
+
+    function loop(now) {
+      t=now;
+      if(running){
+        const speed=keys.shift?2.2:1.15; if(keys.w)x+=0, y-=speed; if(keys.s)y+=speed; if(keys.a)x-=speed; if(keys.d)x+=speed; x*=.96; y*=.96;
+        const d=Math.min(100, Math.round(Math.hypot(x,y)*1.8)); hp=Math.max(0,100-d*.12);
+        health.style.width=hp+'%'; healthText.textContent=Math.round(hp)+'%';
+        const level=d>60?'HIGH':d>25?'MEDIUM':'LOW'; threat.textContent=level;
+        clock.textContent='NIGHT '+new Date(now).toISOString().slice(11,16);
+        if(level==='HIGH') message.textContent='You hear footsteps behind you.'; else if(level==='MEDIUM') message.textContent='Something is moving between the trees.'; else message.textContent='Stay alert. The forest is listening.';
+      }
+      draw(); requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
