@@ -26,13 +26,11 @@ const timer=new THREE.Clock(),loader=new GLTFLoader();
 scene.add(new THREE.HemisphereLight(0x9db5a5,0x121813,1.5));const moon=new THREE.DirectionalLight(0xb9d0c1,2);moon.position.set(-80,120,-70);moon.castShadow=true;moon.shadow.mapSize.set(1024,1024);scene.add(moon);const moonMesh=new THREE.Mesh(new THREE.SphereGeometry(9,24,24),new THREE.MeshBasicMaterial({color:0xdce8df}));moonMesh.position.set(-80,110,-130);scene.add(moonMesh);
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(500,500),new THREE.MeshStandardMaterial({color:0x101b13,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);const path=new THREE.Mesh(new THREE.PlaneGeometry(14,450),new THREE.MeshStandardMaterial({color:0x1b1a13,roughness:1}));path.rotation.x=-Math.PI/2;path.position.y=.01;scene.add(path);
 
-// Forest obstacles are recorded for the A* navigation grid.
 const obstacles=[];function rand(a,b){return a+Math.random()*(b-a)}
 function tree(x,z,s){const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(s);const tr=new THREE.Mesh(new THREE.CylinderGeometry(.45,.7,8,7),new THREE.MeshStandardMaterial({color:0x241b14,roughness:1}));tr.position.y=4;tr.castShadow=true;g.add(tr);for(let i=0;i<4;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(4.2-i*.55,7-i*.8,8),new THREE.MeshStandardMaterial({color:i%2?0x102218:0x0b1a11,roughness:1}));c.position.y=8+i*3.3;c.castShadow=true;g.add(c)}scene.add(g);obstacles.push({x,z,r:Math.max(2.2,4.2*s)})}
 for(let i=0;i<150;i++){let x=rand(-115,115),z=rand(-220,70);if(Math.abs(x)<10)x+=x<0?-18:18;tree(x,z,rand(.65,1.55))}
 for(let i=0;i<90;i++){const r=rand(.25,1.1),m=new THREE.Mesh(new THREE.DodecahedronGeometry(r),new THREE.MeshStandardMaterial({color:0x303831,roughness:1}));const x=rand(-105,105),z=rand(-210,55);m.position.set(x,r*.65,z);m.scale.y=rand(.5,1);m.castShadow=true;scene.add(m);obstacles.push({x,z,r:r+1.1})}
 
-// A* grid covering the playable forest.
 const CELL=4,MIN_X=-120,MAX_X=120,MIN_Z=-220,MAX_Z=68,NX=Math.floor((MAX_X-MIN_X)/CELL)+1,NZ=Math.floor((MAX_Z-MIN_Z)/CELL)+1;
 const blocked=new Uint8Array(NX*NZ);const index=(x,z)=>z*NX+x;const inside=(x,z)=>x>=0&&x<NX&&z>=0&&z<NZ;
 function worldToGrid(x,z){return{x:THREE.MathUtils.clamp(Math.round((x-MIN_X)/CELL),0,NX-1),z:THREE.MathUtils.clamp(Math.round((z-MIN_Z)/CELL),0,NZ-1)}}
@@ -45,13 +43,12 @@ while(open.length){let best=0;for(let i=1;i<open.length;i++)if(open[i].f<open[be
 for(const [dx,dz] of neighbors){const nx=cur.x+dx,nz=cur.z+dz;if(!inside(nx,nz)||blocked[index(nx,nz)]|| (dx&&dz&&(blocked[index(cur.x,nz)]||blocked[index(nx,cur.z)])))continue;const nk=index(nx,nz),ng=cur.g+(dx&&dz?1.414:1);if(ng>=(gScore.get(nk)??Infinity))continue;gScore.set(nk,ng);came.set(nk,ck);open.push({x:nx,z:nz,g:ng,f:ng+heuristic({x:nx,z:nz},goal)})}}
 return[]}
 
-// Humanoid survivor.
 const player=new THREE.Group();player.position.set(0,0,15);scene.add(player);const skin=new THREE.MeshStandardMaterial({color:0x9c765d}),shirt=new THREE.MeshStandardMaterial({color:0x3b4650}),pants=new THREE.MeshStandardMaterial({color:0x1b2025}),shoe=new THREE.MeshStandardMaterial({color:0x0a0c0d});function box(mat,x,y,z,sx,sy,sz){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),mat);m.position.set(x,y,z);m.castShadow=true;player.add(m)}box(shirt,0,2.25,0,1.35,2.1,.7);const head=new THREE.Mesh(new THREE.SphereGeometry(.48,16,12),skin);head.position.y=3.65;head.castShadow=true;player.add(head);box(pants,-.37,.85,0,.55,1.7,.65);box(pants,.37,.85,0,.55,1.7,.65);box(shirt,-.92,2.35,0,.42,1.7,.55);box(shirt,.92,2.35,0,.42,1.7,.55);box(shoe,-.37,.08,-.16,.62,.25,.9);box(shoe,.37,.08,-.16,.62,.25,.9);
 
 let monster=null,mixer=null,pathNodes=[],pathIndex=0,pathTimer=0;const repoGlb='rake%2045%20more%20improvements!.glb';
 function dispose(o){o.traverse(x=>{x.geometry?.dispose();if(x.material)(Array.isArray(x.material)?x.material:[x.material]).forEach(m=>m.dispose())})}
 function fit(o){const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),h=Math.max(s.y,.01);o.scale.setScalar(5.2/h);const b2=new THREE.Box3().setFromObject(o);o.position.y=-b2.min.y}
-function useMonster(g,label){if(monster){scene.remove(monster);dispose(monster)}monster=g.scene;fit(monster);monster.position.set(0,0,-32);monster.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});scene.add(monster);mixer=null;if(g.animations?.length){mixer=new THREE.AnimationMixer(monster);mixer.clipAction(g.animations[0]).play()}pathNodes=[];pathIndex=0;pathTimer=0;document.getElementById('modelStatus').textContent=label}
+function useMonster(g,label){if(monster){scene.remove(monster);dispose(monster)}const root=new THREE.Group();root.add(g.scene);monster=root;fit(monster);monster.position.set(0,0,-32);monster.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});scene.add(monster);mixer=null;if(g.animations?.length){mixer=new THREE.AnimationMixer(g.scene);mixer.clipAction(g.animations[0]).play()}pathNodes=[];pathIndex=0;pathTimer=0;document.getElementById('modelStatus').textContent=label}
 function loadDefault(){loader.load(repoGlb,g=>useMonster(g,'Default Rake loaded from repository.'),undefined,e=>{console.error(e);document.getElementById('modelStatus').textContent='Rake GLB could not be loaded.'})}loadDefault();
 document.getElementById('glbInput').onchange=e=>{const f=e.target.files?.[0];if(!f)return;const u=URL.createObjectURL(f);loader.load(u,g=>{useMonster(g,'Imported: '+f.name);URL.revokeObjectURL(u)},undefined,()=>{document.getElementById('modelStatus').textContent='GLB import failed.';URL.revokeObjectURL(u)})};document.getElementById('monsterSelect').onchange=e=>{if(e.target.value==='default')loadDefault();else document.getElementById('glbInput').click()};
 
