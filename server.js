@@ -8,7 +8,7 @@ const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=u
 const players=new Map();
 function send(ws,payload){if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(payload))}
 function broadcast(payload,except){for(const ws of wss.clients)if(ws.readyState===WebSocket.OPEN&&ws!==except)send(ws,payload)}
-const TARGET_FIX=`<script>
+const TARGET_FIX=`
 (function(){
   let forcedTarget=null;
   let lastTarget=null;
@@ -35,8 +35,7 @@ const TARGET_FIX=`<script>
   };
 
   setInterval(function(){
-    if(!forcedTarget) return;
-    if(!alive(forcedTarget)){
+    if(forcedTarget&&!alive(forcedTarget)){
       lastTarget=forcedTarget;
       forcedTarget=null;
       if(typeof rake!=='undefined'){
@@ -46,44 +45,33 @@ const TARGET_FIX=`<script>
       }
     }
   },100);
-})();
-</script>`;
 
-const BOT_ROTATION_FIX=`<script>
-(function(){
-  const ROTATE_EVERY=7*60*1000;
-  const REJOIN_AFTER=2500;
-  if(!Array.isArray(window.__rakeBotRotationTimers))window.__rakeBotRotationTimers=[];
-
-  function rotateBots(){
-    if(typeof survivors==='undefined')return;
-    survivors.forEach((bot,index)=>{
-      if(!bot||bot.dead)return;
-      bot.dead=true;
-      bot.respawnTimer=REJOIN_AFTER/1000;
-      bot.path=[];
-      bot.pathIndex=0;
-      bot.pathGoal=null;
-      bot.wander=null;
-      if(typeof banner==='function')banner(bot.name+' left the woods');
-
-      setTimeout(function(){
-        if(typeof survivors==='undefined'||!survivors[index])return;
-        const current=survivors[index];
-        if(!current.dead)return;
-        if(typeof current.respawn==='function')current.respawn();
-        else current.dead=false;
-        if(typeof banner==='function')banner(current.name+' rejoined the woods');
-      },REJOIN_AFTER);
-    });
+  // Bots leave and rejoin as a group every 7 minutes.
+  // They stay away for 5 seconds, then respawn at fresh positions.
+  const BOT_CYCLE_MS=7*60*1000;
+  const BOT_AWAY_MS=5000;
+  function botLeaveAndRejoin(){
+    if(typeof survivors==='undefined') return;
+    if(typeof banner==='function') banner('The survivors left the woods');
+    for(const s of survivors){
+      s.dead=true;
+      s.respawnTimer=Infinity;
+      s.path=[];
+      s.pathIndex=0;
+      s.pathGoal=null;
+      s.wander=null;
+    }
+    setTimeout(function(){
+      for(const s of survivors){
+        if(typeof s.respawn==='function') s.respawn();
+        else { s.dead=false; s.health=s.maxHealth||100; }
+      }
+      if(typeof banner==='function') banner('The survivors returned');
+    },BOT_AWAY_MS);
   }
-
-  setTimeout(function(){
-    rotateBots();
-    window.__rakeBotRotationTimers.push(setInterval(rotateBots,ROTATE_EVERY));
-  },ROTATE_EVERY);
+  setInterval(botLeaveAndRejoin,BOT_CYCLE_MS);
 })();
-</script>`;
+`;
 
 const server=http.createServer((req,res)=>{
   const pathname=(req.url||'/').split('?')[0];
@@ -101,7 +89,9 @@ const server=http.createServer((req,res)=>{
   if(ext==='.html'){
     fs.readFile(file,'utf8',(err,data)=>{
       if(err){res.writeHead(500);return res.end('Server error')}
-      res.end(data.replace('</body>',TARGET_FIX+BOT_ROTATION_FIX+'</body>'));
+      // Inject into the existing game script so the patch can access its
+      // top-level player/survivor/rake variables and classes.
+      res.end(data.replace('</script>',TARGET_FIX+'</script>'));
     });
   }else{
     fs.createReadStream(file).pipe(res);
