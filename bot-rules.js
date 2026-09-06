@@ -1,13 +1,22 @@
 (()=>{
+  // Bots are local HTML/canvas players. Use a second canvas so the game's draw loop cannot erase them.
   const botCount=4,names=['Survivor 1','Survivor 2','Survivor 3','Survivor 4'],bots=[];
-  const spawnPoint=()=>{const a=Math.random()*Math.PI*2,d=140+Math.random()*180;return{x:Math.max(60,Math.min(WW-60,spawn.x+Math.cos(a)*d)),y:Math.max(60,Math.min(WH-60,spawn.y+Math.sin(a)*d))}};
-  const makeBot=i=>{const p=spawnPoint();return{id:i,name:names[i],x:p.x,y:p.y,r:12,health:100,maxHealth:100,dead:false,respawn:0,wander:null,wanderTimer:0,joined:false,joinTimer:1+i*2,lifeTimer:0}};
+  const overlay=document.createElement('canvas');
+  overlay.id='botLayer';
+  Object.assign(overlay.style,{position:'absolute',inset:'0',width:'100%',height:'100%',zIndex:'2',pointerEvents:'none'});
+  c.parentElement.insertBefore(overlay,c.nextSibling);
+  const bx=overlay.getContext('2d');
+  function resizeBots(){const d=Math.min(devicePixelRatio||1,2);overlay.width=innerWidth*d;overlay.height=innerHeight*d;bx.setTransform(d,0,0,d,0,0)}
+  addEventListener('resize',resizeBots);resizeBots();
+
+  const spawnPoint=()=>{const a=Math.random()*Math.PI*2,d=35+Math.random()*55;return{x:Math.max(40,Math.min(WW-40,spawn.x+Math.cos(a)*d)),y:Math.max(40,Math.min(WH-40,spawn.y+Math.sin(a)*d))}};
+  const makeBot=i=>{const p=spawnPoint();return{id:i,name:names[i],x:p.x,y:p.y,r:12,health:100,maxHealth:100,dead:false,respawn:0,wander:null,wanderTimer:0,joined:false,joinTimer:0,lifeTimer:0}};
   for(let i=0;i<botCount;i++)bots.push(makeBot(i));
   window.rakeBots=bots;
   const alive=t=>!!t&&!t.dead&&t.health>0&&t.joined;
   const activeBots=()=>bots.filter(b=>b.joined&&!b.dead);
   function updateCount(){$('playerCount').textContent=String(1+activeBots().length)}
-  function joinBot(b){const p=spawnPoint();b.x=p.x;b.y=p.y;b.health=100;b.dead=false;b.respawn=0;b.joined=true;b.wander=null;b.wanderTimer=0;b.lifeTimer=22+Math.random()*35;banner(b.name+' joined the game');updateCount()}
+  function joinBot(b){const p=spawnPoint();b.x=p.x;b.y=p.y;b.health=100;b.dead=false;b.respawn=0;b.joined=true;b.wander=null;b.wanderTimer=0;b.lifeTimer=25+Math.random()*35;banner(b.name+' joined the game');updateCount()}
   function leaveBot(b){if(activeBots().length<=1)return false;b.joined=false;b.dead=false;b.health=100;b.wander=null;b.wanderTimer=0;b.joinTimer=7+Math.random()*12;b.lifeTimer=0;if(currentTarget&&currentTarget.ref===b)currentTarget=null;if(lastTarget&&lastTarget.ref===b)lastTarget=null;banner(b.name+' left the game');updateCount();return true}
   const allTargets=()=>{const a=[];if(!player.dead)a.push({kind:'player',ref:player,name:'You'});for(const b of bots)if(alive(b))a.push({kind:'bot',ref:b,name:b.name});return a};
   let currentTarget=null,lastTarget=null,targetHits=0;
@@ -18,8 +27,7 @@
   function botMove(b,t,s,dt){const dx=t.x-b.x,dy=t.y-b.y,d=Math.hypot(dx,dy)||1;b.x=Math.max(25,Math.min(WW-25,b.x+dx/d*s*dt));b.y=Math.max(25,Math.min(WH-25,b.y+dy/d*s*dt))}
   function updateBots(dt){for(const b of bots){if(!b.joined){b.joinTimer-=dt;if(b.joinTimer<=0)joinBot(b);continue}if(b.dead){b.respawn-=dt;if(b.respawn<=0)joinBot(b);continue}b.lifeTimer-=dt;if(b.lifeTimer<=0)leaveBot(b);if(!b.joined)continue;b.wanderTimer-=dt;if(!b.wander||b.wanderTimer<=0){b.wander={x:rand(80,WW-80),y:rand(80,WH-80)};b.wanderTimer=2.5+Math.random()*4}botMove(b,b.wander,8+Math.random()*3,dt)}updateCount()}
   window.ai=function(dt,now){updateBots(dt);rake.isMoving=false;if(!night){currentTarget=null;lastTarget=null;targetHits=0;mode('retreating');rake.animName='walk';navigateTo(spawn,29,dt,true);return}const t=chooseTarget();if(t){const d=dist(rake,t.ref);$('distance').textContent=Math.round(d)+' studs';if(d<30){mode('attacking');startSlash()}else{mode('stalking');rake.animName='walk';rake.path=[];navigateTo(t.ref,34,dt,true)}return}$('distance').textContent='—';mode('searching');rake.animName='walk';if(playerTrail.length)followTrail(dt,now,29);else navigateTo(player,29,dt,true)};
-  // Prevent the old network client from interfering. Bots are created and rendered entirely by this HTML script.
   window.connectMultiplayer=()=>{};if(socket&&socket.readyState<=1)try{socket.close()}catch{}socket=null;$('connection').textContent='AI Bots';updateCount();const legend=document.querySelector('.legend');if(legend)legend.textContent='Blue survivors are AI players • They join, roam, die, respawn and leave like real players';
-  function drawBots(){const scale=Math.min(W/1100,H/700),viewW=W/scale,viewH=H/scale,cameraX=Math.max(0,Math.min(WW-viewW,player.x-viewW/2)),cameraY=Math.max(0,Math.min(WH-viewH,player.y-viewH/2));x.save();x.scale(scale,scale);x.translate(-cameraX,-cameraY);for(const b of bots){if(!b.joined||b.dead)continue;x.fillStyle='#6e9fff';x.beginPath();x.arc(b.x,b.y,b.r,0,Math.PI*2);x.fill();x.fillStyle='#e7eefb';x.font='11px system-ui';x.textAlign='center';x.fillText(b.name,b.x,b.y-18);x.fillStyle='#1b2420';x.fillRect(b.x-16,b.y+15,32,4);x.fillStyle='#69cf7b';x.fillRect(b.x-16,b.y+15,32*(b.health/b.maxHealth),4)}x.restore()}
-  requestAnimationFrame(function botRender(){drawBots();requestAnimationFrame(botRender)});
+  function drawBots(){const scale=Math.min(W/1100,H/700),viewW=W/scale,viewH=H/scale,cameraX=Math.max(0,Math.min(WW-viewW,player.x-viewW/2)),cameraY=Math.max(0,Math.min(WH-viewH,player.y-viewH/2));bx.clearRect(0,0,W,H);bx.save();bx.scale(scale,scale);bx.translate(-cameraX,-cameraY);for(const b of bots){if(!b.joined||b.dead)continue;bx.fillStyle='#6e9fff';bx.beginPath();bx.arc(b.x,b.y,b.r,0,Math.PI*2);bx.fill();bx.fillStyle='#e7eefb';bx.font='11px system-ui';bx.textAlign='center';bx.fillText(b.name,b.x,b.y-18);bx.fillStyle='#1b2420';bx.fillRect(b.x-16,b.y+15,32,4);bx.fillStyle='#69cf7b';bx.fillRect(b.x-16,b.y+15,32*(b.health/b.maxHealth),4)}bx.restore()}
+  function botRender(){drawBots();requestAnimationFrame(botRender)}requestAnimationFrame(botRender);
 })();
