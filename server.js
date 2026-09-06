@@ -8,6 +8,54 @@ const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=u
 const players=new Map();
 function send(ws,payload){if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(payload))}
 function broadcast(payload,except){for(const ws of wss.clients)if(ws.readyState===WebSocket.OPEN&&ws!==except)send(ws,payload)}
+const TARGET_FIX=`<script>
+(function(){
+  let forcedTarget=null;
+  let lastTarget=null;
+  let knownDeaths=new WeakMap();
+
+  function alive(t){
+    return !!t && (t===player ? !player.dead && player.health>0 : !t.dead && t.health>0);
+  }
+
+  function candidates(){
+    const list=[];
+    if(alive(player)) list.push(player);
+    for(const s of survivors) if(alive(s)) list.push(s);
+    return list;
+  }
+
+  // Replaces the old target chooser: the Rake keeps its target until that
+  // survivor dies, then immediately picks another living survivor at random.
+  window.chooseTarget=function(){
+    if(alive(forcedTarget)) return forcedTarget;
+
+    const list=candidates();
+    if(!list.length){forcedTarget=null;return null;}
+
+    const choices=list.length>1 ? list.filter(t=>t!==lastTarget) : list;
+    forcedTarget=choices[Math.floor(Math.random()*choices.length)]||list[0];
+    lastTarget=forcedTarget;
+    return forcedTarget;
+  };
+
+  // Watch the current target so a death causes a fresh random selection on
+  // the very next AI tick, rather than allowing a stale target to persist.
+  setInterval(function(){
+    if(!forcedTarget) return;
+    if(!alive(forcedTarget)){
+      lastTarget=forcedTarget;
+      forcedTarget=null;
+      if(typeof rake!=='undefined'){
+        rake.path=[];
+        rake.pathIndex=0;
+        rake.pathGoal=null;
+      }
+    }
+  },100);
+})();
+</script>`;
+
 const server=http.createServer((req,res)=>{
   const pathname=(req.url||'/').split('?')[0];
   if(pathname==='/health'||pathname==='/api/health'){
@@ -21,7 +69,14 @@ const server=http.createServer((req,res)=>{
   }
   const ext=path.extname(file).toLowerCase();
   res.writeHead(200,{'Content-Type':MIME[ext]||'application/octet-stream','Cache-Control':ext==='.html'?'no-store':'public,max-age=3600'});
-  fs.createReadStream(file).pipe(res);
+  if(ext==='.html'){
+    fs.readFile(file,'utf8',(err,data)=>{
+      if(err){res.writeHead(500);return res.end('Server error')}
+      res.end(data.replace('</body>',TARGET_FIX+'</body>'));
+    });
+  }else{
+    fs.createReadStream(file).pipe(res);
+  }
 });
 const wss=new WebSocket.Server({server});
 wss.on('connection',ws=>{
