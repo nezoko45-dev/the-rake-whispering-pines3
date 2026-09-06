@@ -12,7 +12,6 @@ const TARGET_FIX=`<script>
 (function(){
   let forcedTarget=null;
   let lastTarget=null;
-  let knownDeaths=new WeakMap();
 
   function alive(t){
     return !!t && (t===player ? !player.dead && player.health>0 : !t.dead && t.health>0);
@@ -25,22 +24,16 @@ const TARGET_FIX=`<script>
     return list;
   }
 
-  // Replaces the old target chooser: the Rake keeps its target until that
-  // survivor dies, then immediately picks another living survivor at random.
   window.chooseTarget=function(){
     if(alive(forcedTarget)) return forcedTarget;
-
     const list=candidates();
     if(!list.length){forcedTarget=null;return null;}
-
     const choices=list.length>1 ? list.filter(t=>t!==lastTarget) : list;
     forcedTarget=choices[Math.floor(Math.random()*choices.length)]||list[0];
     lastTarget=forcedTarget;
     return forcedTarget;
   };
 
-  // Watch the current target so a death causes a fresh random selection on
-  // the very next AI tick, rather than allowing a stale target to persist.
   setInterval(function(){
     if(!forcedTarget) return;
     if(!alive(forcedTarget)){
@@ -53,6 +46,42 @@ const TARGET_FIX=`<script>
       }
     }
   },100);
+})();
+</script>`;
+
+const BOT_ROTATION_FIX=`<script>
+(function(){
+  const ROTATE_EVERY=7*60*1000;
+  const REJOIN_AFTER=2500;
+  if(!Array.isArray(window.__rakeBotRotationTimers))window.__rakeBotRotationTimers=[];
+
+  function rotateBots(){
+    if(typeof survivors==='undefined')return;
+    survivors.forEach((bot,index)=>{
+      if(!bot||bot.dead)return;
+      bot.dead=true;
+      bot.respawnTimer=REJOIN_AFTER/1000;
+      bot.path=[];
+      bot.pathIndex=0;
+      bot.pathGoal=null;
+      bot.wander=null;
+      if(typeof banner==='function')banner(bot.name+' left the woods');
+
+      setTimeout(function(){
+        if(typeof survivors==='undefined'||!survivors[index])return;
+        const current=survivors[index];
+        if(!current.dead)return;
+        if(typeof current.respawn==='function')current.respawn();
+        else current.dead=false;
+        if(typeof banner==='function')banner(current.name+' rejoined the woods');
+      },REJOIN_AFTER);
+    });
+  }
+
+  setTimeout(function(){
+    rotateBots();
+    window.__rakeBotRotationTimers.push(setInterval(rotateBots,ROTATE_EVERY));
+  },ROTATE_EVERY);
 })();
 </script>`;
 
@@ -72,7 +101,7 @@ const server=http.createServer((req,res)=>{
   if(ext==='.html'){
     fs.readFile(file,'utf8',(err,data)=>{
       if(err){res.writeHead(500);return res.end('Server error')}
-      res.end(data.replace('</body>',TARGET_FIX+'</body>'));
+      res.end(data.replace('</body>',TARGET_FIX+BOT_ROTATION_FIX+'</body>'));
     });
   }else{
     fs.createReadStream(file).pipe(res);
