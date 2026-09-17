@@ -111,7 +111,7 @@ function partSphere(parent,pos,scale,material){
 }
 function makeRake(){
   const root=new THREE.Group();
-  root.position.set(35,0,-80);
+  root.position.set(28,0,-38);
   root.userData={anim:"walk",phase:0,attack:0,stun:0,hp:15000};
   return root;
 }
@@ -127,13 +127,13 @@ async function loadUploadedRake(){
     if(!gltf?.scene)throw new Error("assets/rake/rake.glb contains no scene");
     rakeGLB=gltf.scene;
 
-    // Normalize the imported model so its feet sit on the ground and its height is ~6.2 units.
+    // Normalize the imported model so its feet sit on the ground and it has a large, clearly visible Rake silhouette (~9 units tall).
     rakeGLB.updateMatrixWorld(true);
     const box=new THREE.Box3().setFromObject(rakeGLB);
     const size=box.getSize(new THREE.Vector3());
     const center=box.getCenter(new THREE.Vector3());
     const height=Math.max(size.y,0.001);
-    const scale=6.2/height;
+    const scale=9.0/height;
     rakeGLB.scale.setScalar(scale);
     rakeGLB.position.set(-center.x*scale,-box.min.y*scale,-center.z*scale);
 
