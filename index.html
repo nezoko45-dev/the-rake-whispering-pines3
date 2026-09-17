@@ -310,8 +310,8 @@ function updateAI(dt,night){
   if(u.stun){u.anim="stun";return}
   target=chooseTarget();if(!target)return;
   const d=distance(rake.position,target.pos);
-  if(!night){u.anim="idle";const dx=35-rake.position.x,dz=-80-rake.position.z;rake.position.x+=dx*dt*1.2;rake.position.z+=dz*dt*1.2;return}
-  if(d<3.2){u.anim="attack";u.attack+=dt;if(u.attack>.42&&u.attack<.48){damage(target,25);u.jaw.rotation.x=-.6}if(u.attack>1)u.attack=0}
+  if(!night){u.anim="idle";const dx=28-rake.position.x,dz=-38-rake.position.z;rake.position.x+=dx*dt*1.2;rake.position.z+=dz*dt*1.2;return}
+  if(d<3.2){u.anim="attack";u.attack+=dt;if(u.attack>.42&&u.attack<.48){damage(target,25)}if(u.attack>1)u.attack=0}
   else{
     u.attack=0;u.anim=d<45?"chase":"walk";
     const sp=d<45?19:7,dx=target.pos.x-rake.position.x,dz=target.pos.z-rake.position.z,l=Math.hypot(dx,dz)||1;
