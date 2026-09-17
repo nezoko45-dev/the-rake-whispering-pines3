@@ -42,6 +42,7 @@ Rake HP: <span id="rhp">15000</span><div class="bar"><div id="rf" class="fill re
 </script>
 <script type="module">
 import * as THREE from "three";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/loaders/GLTFLoader.js";
 
 const canvas=document.getElementById("game");
 let renderer;
@@ -138,6 +139,44 @@ function makeRake(){
 }
 const rake=makeRake();scene.add(rake);
 
+// The uploaded Rake GLB is the visual model. The procedural body remains hidden as a safe fallback.
+let rakeGLB=null,rakeMixer=null,rakeActions={},rakeActionName="";
+async function loadUploadedRake(){
+  try{
+    const gltf=await new GLTFLoader().loadAsync("assets/rake/rake.glb");
+    rakeGLB=gltf.scene;
+    rakeGLB.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;o.frustumCulled=true}});
+    const box=new THREE.Box3().setFromObject(rakeGLB),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
+    const h=Math.max(size.y,0.001); const scale=6.2/h;
+    rakeGLB.scale.setScalar(scale);
+    rakeGLB.position.set(-center.x*scale,-box.min.y*scale,-center.z*scale);
+    rakeGLB.userData.baseY=0;
+    rake.add(rakeGLB);
+    rake.traverse(o=>{if(o.isMesh && o!==rakeGLB && !rakeGLB.getObjectById(o.id))o.visible=false});
+    rakeMixer=gltf.animations?.length?new THREE.AnimationMixer(rakeGLB):null;
+    for(const clip of (gltf.animations||[])){
+      const key=clip.name.toLowerCase().replace(/[^a-z0-9]/g,"");
+      rakeActions[key]=rakeMixer?.clipAction(clip);
+    }
+    setGLBAnimation("idle",true);
+    showBanner("Rake model loaded");
+  }catch(e){console.warn("[Rake] GLB failed; keeping default model.",e);showBanner("Rake model unavailable — fallback active")}
+}
+function findGLBAction(state){
+  const aliases={idle:["idle","breathing","stand","standing","walk","walking"],walk:["walk","walking","idle"],chase:["chase","run","running","sprint","walk","walking"],attack:["attack","attacking","slash","claw"],stun:["parry","parried","stun","stunned","hit"]};
+  for(const n of aliases[state]||[])if(rakeActions[n])return rakeActions[n];
+  return null;
+}
+function setGLBAnimation(state,immediate=false){
+  if(!rakeMixer)return; const a=findGLBAction(state); if(!a)return;
+  if(rakeActionName===state&&!immediate)return;
+  for(const key in rakeActions)if(rakeActions[key]!==a)rakeActions[key].fadeOut(immediate?0:.1);
+  a.reset().fadeIn(immediate?0:.1).play();
+  if(state==="attack"||state==="stun"){a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=true}else{a.setLoop(THREE.LoopRepeat,Infinity);a.clampWhenFinished=false}
+  rakeActionName=state;
+}
+
+let dtGlobal=0;
 const player={pos:new THREE.Vector3(0,1.7,12),yaw:0,pitch:0,hp:100,dead:false};
 const survivors=[];
 for(let i=0;i<5;i++){
@@ -157,6 +196,7 @@ addEventListener("keyup",e=>keys[e.code]=false);
 document.getElementById("begin").addEventListener("click",()=>{
   started=true;document.getElementById("start").style.display="none";
   canvas.requestPointerLock?.();
+  loadUploadedRake();
 });
 addEventListener("mousemove",e=>{
   if(document.pointerLockElement!==canvas)return;
@@ -207,6 +247,8 @@ function updateAI(dt,night){
   }
 }
 function animateRake(){
+  if(rakeGLB){setGLBAnimation(rake.userData.anim);if(rakeMixer)rakeMixer.update(Math.min(.05,clock*0+dtGlobal));return}
+
   const u=rake.userData,s=Math.sin(u.phase),mult=u.anim==="chase"?1.25:1;
   if(u.anim==="walk"||u.anim==="chase"){
     u.legs[0].thigh.rotation.z=-.25*s*mult;u.legs[1].thigh.rotation.z=.25*s*mult;
@@ -223,7 +265,7 @@ function animateRake(){
     u.arms[0].upper.rotation.z=-.08;u.arms[1].upper.rotation.z=.08;u.jaw.rotation.x=.04+Math.sin(performance.now()*.003)*.02;
   }
 }
-function update(dt){
+function update(dt){dtGlobal=dt;
   clock+=dt*1.57;if(clock>=1440)clock-=1440;
   const hour=Math.floor(clock/60)%24,min=Math.floor(clock%60),night=clock>=1140||clock<360;
   document.getElementById("time").textContent=((hour%12)||12)+":"+String(min).padStart(2,"0")+" "+(hour<12?"AM":"PM");
