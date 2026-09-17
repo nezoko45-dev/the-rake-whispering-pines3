@@ -130,8 +130,33 @@ async function loadUploadedRake(){
 
   try{
     const loader=new GLTFLoader();
-    const gltf=await loader.loadAsync("./assets/rake/rake.glb");
-    if(!gltf || !gltf.scene) throw new Error("The Rake GLB has no scene.");
+    loader.setCrossOrigin("anonymous");
+
+    // Try the normal repo-relative path first, then the raw GitHub copy.
+    // The second path also lets the model load when index.html is opened
+    // directly instead of through a web server.
+    const modelUrls=[
+      "./assets/rake/rake.glb",
+      "https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/assets/rake/rake.glb"
+    ];
+
+    let gltf=null;
+    let lastError=null;
+    for(const url of modelUrls){
+      try{
+        gltf=await new Promise((resolve,reject)=>{
+          loader.load(url,resolve,undefined,reject);
+        });
+        if(gltf?.scene)break;
+      }catch(err){
+        lastError=err;
+        console.warn("[Rake GLB] load attempt failed:",url,err);
+      }
+    }
+    if(!gltf || !gltf.scene){
+      const detail=lastError?.message||lastError?.statusText||"Could not fetch or parse the GLB.";
+      throw new Error("GLB load/parse failed: "+detail);
+    }
 
     const root=gltf.scene;
     root.visible=false;
