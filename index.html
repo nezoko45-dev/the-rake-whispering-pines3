@@ -110,69 +110,222 @@ function partSphere(parent,pos,scale,material){
   m.position.set(...pos);m.scale.set(...scale);parent.add(m);return m;
 }
 function makeRake(){
-  const root=new THREE.Group();root.position.set(35,0,-80);
-  const u={anim:"walk",phase:0,attack:0,stun:0,hp:15000,head:null,jaw:null,arms:[],legs:[]};
-  partSphere(root,[0,2.3,0],[.7,.6,.65],mat.dark);
-  partSphere(root,[0,3.5,0],[.82,1.45,.65],mat.rake);
-  partSphere(root,[0,4.35,0],[.9,.72,.68],mat.rake);
-  const neck=partSphere(root,[0,4.95,0],[.3,.55,.32],mat.dark);
-  const head=new THREE.Group();head.position.set(0,5.7,-.1);root.add(head);u.head=head;
-  partSphere(head,[0,0,0],[.92,1.05,.85],mat.rake);
-  partSphere(head,[0,.2,-.68],[.65,.12,.15],mat.dark);
-  for(const s of[-1,1])partSphere(head,[s*.3,.08,-.75],[.11,.11,.06],mat.eye);
-  for(let i=0;i<7;i++){const t=new THREE.Mesh(new THREE.ConeGeometry(.075,.34,6),mat.tooth);t.rotation.x=Math.PI;t.position.set(-.39+i*.13,-.34,-.68);head.add(t)}
-  const jaw=new THREE.Group();jaw.position.set(0,-.48,-.5);head.add(jaw);u.jaw=jaw;
-  partSphere(jaw,[0,0,0],[.7,.4,.57],mat.rake);
-  for(let i=0;i<7;i++){const t=new THREE.Mesh(new THREE.ConeGeometry(.075,.34,6),mat.tooth);t.position.set(-.39+i*.13,.2,-.64);jaw.add(t)}
-  for(const s of[-1,1]){
-    const upper=partSphere(root,[s*.88,4.05,0],[.32,1.65,.34],mat.dark);
-    const fore=partSphere(root,[s*1.02,2.55,0],[.25,1.45,.28],mat.rake);
-    partSphere(root,[s*1.03,1.15,0],[.28,.34,.32],mat.dark);
-    for(let k=-1;k<=1;k++){const c=new THREE.Mesh(new THREE.ConeGeometry(.075,.8,6),mat.claw);c.rotation.x=-Math.PI/2;c.position.set(s*1.03+k*.14,.95,-.4);root.add(c)}
-    u.arms.push({upper,fore});
-    const thigh=partSphere(root,[s*.43,2.05,.05],[.35,1.15,.38],mat.dark);
-    const shin=partSphere(root,[s*.48,.75,0],[.26,1.15,.28],mat.rake);
-    partSphere(root,[s*.48,-.25,-.2],[.3,.22,.62],mat.dark);
-    u.legs.push({thigh,shin});
-  }
-  root.userData=u;return root;
+  const root=new THREE.Group();
+  root.position.set(35,0,-80);
+  root.userData={anim:"walk",phase:0,attack:0,stun:0,hp:15000};
+  return root;
 }
-const rake=makeRake();scene.add(rake);
+const rake=makeRake();
+scene.add(rake);
 
-// The uploaded Rake GLB is the visual model. The procedural body remains hidden as a safe fallback.
-let rakeGLB=null,rakeMixer=null,rakeActions={},rakeActionName="";
+// Your uploaded GLB is the ONLY Rake visual. No procedural Rake is created.
+let rakeGLB=null,rakeMixer=null,rakeActions={},rakeActionName="",rakeLoaded=false,rakeLoadError=null;
+
 async function loadUploadedRake(){
   try{
-    const gltf=await new GLTFLoader().loadAsync("assets/rake/rake.glb");
+    const gltf=await new GLTFLoader().loadAsync("./assets/rake/rake.glb");
+    if(!gltf?.scene)throw new Error("assets/rake/rake.glb contains no scene");
     rakeGLB=gltf.scene;
-    rakeGLB.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;o.frustumCulled=true}});
-    const box=new THREE.Box3().setFromObject(rakeGLB),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
-    const h=Math.max(size.y,0.001); const scale=6.2/h;
+
+    // Normalize the imported model so its feet sit on the ground and its height is ~6.2 units.
+    rakeGLB.updateMatrixWorld(true);
+    const box=new THREE.Box3().setFromObject(rakeGLB);
+    const size=box.getSize(new THREE.Vector3());
+    const center=box.getCenter(new THREE.Vector3());
+    const height=Math.max(size.y,0.001);
+    const scale=6.2/height;
     rakeGLB.scale.setScalar(scale);
     rakeGLB.position.set(-center.x*scale,-box.min.y*scale,-center.z*scale);
-    rakeGLB.userData.baseY=0;
+
+    rakeGLB.traverse(o=>{
+      if(o.isMesh){
+        o.visible=true;
+        o.castShadow=false;
+        o.receiveShadow=false;
+        o.frustumCulled=true;
+      }
+    });
     rake.add(rakeGLB);
-    rake.traverse(o=>{if(o.isMesh && o!==rakeGLB && !rakeGLB.getObjectById(o.id))o.visible=false});
+
     rakeMixer=gltf.animations?.length?new THREE.AnimationMixer(rakeGLB):null;
     for(const clip of (gltf.animations||[])){
       const key=clip.name.toLowerCase().replace(/[^a-z0-9]/g,"");
-      rakeActions[key]=rakeMixer?.clipAction(clip);
+      if(rakeMixer)rakeActions[key]=rakeMixer.clipAction(clip);
     }
-    setGLBAnimation("idle",true);
-    showBanner("Rake model loaded");
-  }catch(e){console.warn("[Rake] GLB failed; keeping default model.",e);showBanner("Rake model unavailable — fallback active")}
+    if(rakeMixer)setGLBAnimation("idle",true);
+
+    rakeLoaded=true;
+    document.getElementById("begin").disabled=false;
+    document.getElementById("begin").textContent="ENTER THE FOREST";
+    showBanner("Rake GLB loaded");
+  }catch(e){
+    rakeLoadError=e;
+    console.error("[Rake GLB] Could not load assets/rake/rake.glb",e);
+    const btn=document.getElementById("begin");
+    btn.disabled=true;
+    btn.textContent="RAKE MODEL FAILED TO LOAD";
+    document.querySelector("#startBox small").textContent="Could not load assets/rake/rake.glb. The game will not use a procedural replacement.";
+  }
 }
+
 function findGLBAction(state){
-  const aliases={idle:["idle","breathing","stand","standing","walk","walking"],walk:["walk","walking","idle"],chase:["chase","run","running","sprint","walk","walking"],attack:["attack","attacking","slash","claw"],stun:["parry","parried","stun","stunned","hit"]};
-  for(const n of aliases[state]||[])if(rakeActions[n])return rakeActions[n];
+  const aliases={
+    idle:["idle","breathing","stand","standing","walk","walking"],
+    walk:["walk","walking","idle","standing"],
+    chase:["chase","run","running","sprint","walk","walking"],
+    attack:["attack","attacking","slash","claw"],
+    stun:["parry","parried","stun","stunned","hit"]
+  };
+  for(const n of aliases[state]||[]){
+    const key=n.replace(/[^a-z0-9]/g,"");
+    if(rakeActions[key])return rakeActions[key];
+  }
   return null;
 }
+
 function setGLBAnimation(state,immediate=false){
-  if(!rakeMixer)return; const a=findGLBAction(state); if(!a)return;
+  if(!rakeMixer)return;
+  const a=findGLBAction(state);
+  if(!a)return;
   if(rakeActionName===state&&!immediate)return;
-  for(const key in rakeActions)if(rakeActions[key]!==a)rakeActions[key].fadeOut(immediate?0:.1);
+  for(const key in rakeActions){
+    if(rakeActions[key]!==a)rakeActions[key].fadeOut(immediate?0:.1);
+  }
   a.reset().fadeIn(immediate?0:.1).play();
-  if(state==="attack"||state==="stun"){a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=true}else{a.setLoop(THREE.LoopRepeat,Infinity);a.clampWhenFinished=false}
+  if(state==="attack"||state==="stun"){
+    a.setLoop(THREE.LoopOnce,1);
+    a.clampWhenFinished=true;
+  }else{
+    a.setLoop(THREE.LoopRepeat,Infinity);
+    a.clampWhenFinished=false;
+  }
+  rakeActionName=state;
+}
+
+let dtGlobal=0;
+const player={pos:new THREE.Vector3(0,1.7,12),yaw:0,pitch:0,hp:100,dead:false};
+const survivors=[];
+for(let i=0;i<5;i++){
+  const g=new THREE.Group();const b=new THREE.Mesh(new THREE.CapsuleGeometry(.4,.85,4,7),mat.survivor);b.position.y=1;
+  const h=new THREE.Mesh(new THREE.SphereGeometry(.32,8,6),mat.rake);h.position.y=1.8;g.add(b,h);
+  g.position.set((i-2)*5,0,5+Math.sin(i)*4);scene.add(g);survivors.push({mesh:g,hp:100,dead:false,name:"Survivor "+(i+1)});
+}
+camera.position.copy(player.pos);
+
+const keys={};let started=false,last=performance.now(),clock=1170,target=null,stunCD=0;
+addEventListener("keydown",e=>{
+  keys[e.code]=true;
+  if(e.code==="Space"){e.preventDefault();stunstick()}
+  if(e.code==="KeyR"&&player.dead)respawn();
+});
+addEventListener("keyup",e=>keys[e.code]=false);
+document.getElementById("begin").disabled=true;
+loadUploadedRake();
+
+document.getElementById("begin").addEventListener("click",()=>{
+  if(!rakeLoaded)return;
+  started=true;
+  document.getElementById("start").style.display="none";
+  canvas.requestPointerLock?.();
+});
+addEventListener("mousemove",e=>{
+  if(document.pointerLockElement!==canvas)return;
+  player.yaw-=e.movementX*.0023;
+  player.pitch=Math.max(-1.3,Math.min(1.3,player.pitch-e.movementY*.0023));
+});
+addEventListener("click",()=>{if(started&&document.pointerLockElement!==canvas)canvas.requestPointerLock?.()});
+
+function blocked(p){
+  if(Math.abs(p.x)>215||Math.abs(p.z)>215)return true;
+  for(const s of obstacles)if(Math.abs(p.x-s.x)<s.w/2+.45&&Math.abs(p.z-s.z)<s.d/2+.45)return true;
+  return false;
+}
+function distance(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
+function forward(){return new THREE.Vector3(Math.sin(player.yaw),0,-Math.cos(player.yaw))}
+function showBanner(t){const b=document.getElementById("banner");b.textContent=t;b.classList.add("show");clearTimeout(b.timer);b.timer=setTimeout(()=>b.classList.remove("show"),1200)}
+function chooseTarget(){
+  const list=[{name:"YOU",pos:player.pos,obj:player},...survivors.filter(s=>!s.dead).map(s=>({name:s.name,pos:s.mesh.position,obj:s}))];
+  list.sort((a,b)=>distance(rake.position,a.pos)-distance(rake.position,b.pos));return list[0]||null;
+}
+function damage(t,n){
+  if(t.obj===player){player.hp=Math.max(0,player.hp-n);if(player.hp<=0){player.dead=true;showBanner("THE RAKE GOT YOU — PRESS R")}}
+  else{t.obj.hp-=n;if(t.obj.hp<=0){t.obj.dead=true;t.obj.mesh.visible=false;showBanner(t.name+" was killed")}}
+}
+function stunstick(){
+  if(!started||player.dead||stunCD>0)return;
+  stunCD=.65;const d=distance(rake.position,player.pos);if(d>4.5)return;
+  const to=rake.position.clone().sub(player.pos).normalize();
+  if(forward().dot(to)<.55)return;
+  rake.userData.stun=.65;rake.userData.anim="stun";
+  const rf=new THREE.Vector3(Math.sin(rake.rotation.y),0,Math.cos(rake.rotation.y));
+  const pt=player.pos.clone().sub(rake.position).normalize();
+  if(rf.dot(pt)>.55)showBanner("PARRIED");
+  else{rake.userData.hp=Math.max(0,rake.userData.hp-45);showBanner("45 DAMAGE")}
+}
+function respawn(){player.dead=false;player.hp=100;player.pos.set(0,1.7,12);rake.position.set(35,0,-80);rake.userData.hp=15000;showBanner("YOU RESPAWNED")}
+function updateAI(dt,night){
+  const u=rake.userData;u.stun=Math.max(0,u.stun-dt);
+  if(u.stun){u.anim="stun";return}
+  target=chooseTarget();if(!target)return;
+  const d=distance(rake.position,target.pos);
+  if(!night){u.anim="idle";const dx=35-rake.position.x,dz=-80-rake.position.z;rake.position.x+=dx*dt*1.2;rake.position.z+=dz*dt*1.2;return}
+  if(d<3.2){u.anim="attack";u.attack+=dt;if(u.attack>.42&&u.attack<.48){damage(target,25);u.jaw.rotation.x=-.6}if(u.attack>1)u.attack=0}
+  else{
+    u.attack=0;u.anim=d<45?"chase":"walk";
+    const sp=d<45?19:7,dx=target.pos.x-rake.position.x,dz=target.pos.z-rake.position.z,l=Math.hypot(dx,dz)||1;
+    rake.position.x+=dx/l*sp*dt;rake.position.z+=dz/l*sp*dt;rake.rotation.y=Math.atan2(dx,dz);u.phase+=dt*sp*.9;
+  }
+}
+function animateRake(){
+  if(!rakeGLB)return;
+  setGLBAnimation(rake.userData.anim);
+  if(rakeMixer)rakeMixer.update(Math.min(.05,dtGlobal));
+}
+
+document.getElementById("begin").disabled=false;
+    document.getElementById("begin").textContent="ENTER THE FOREST";
+    showBanner("Rake GLB loaded");
+  }catch(e){
+    rakeLoadError=e;
+    console.error("[Rake GLB] Could not load assets/rake/rake.glb",e);
+    const btn=document.getElementById("begin");
+    btn.disabled=true;
+    btn.textContent="RAKE MODEL FAILED TO LOAD";
+    document.querySelector("#startBox small").textContent="Could not load assets/rake/rake.glb. The game will not use a procedural replacement.";
+  }
+}
+
+function findGLBAction(state){
+  const aliases={
+    idle:["idle","breathing","stand","standing","walk","walking"],
+    walk:["walk","walking","idle","standing"],
+    chase:["chase","run","running","sprint","walk","walking"],
+    attack:["attack","attacking","slash","claw"],
+    stun:["parry","parried","stun","stunned","hit"]
+  };
+  for(const n of aliases[state]||[]){
+    const key=n.replace(/[^a-z0-9]/g,"");
+    if(rakeActions[key])return rakeActions[key];
+  }
+  return null;
+}
+
+function setGLBAnimation(state,immediate=false){
+  if(!rakeMixer)return;
+  const a=findGLBAction(state);
+  if(!a)return;
+  if(rakeActionName===state&&!immediate)return;
+  for(const key in rakeActions){
+    if(rakeActions[key]!==a)rakeActions[key].fadeOut(immediate?0:.1);
+  }
+  a.reset().fadeIn(immediate?0:.1).play();
+  if(state==="attack"||state==="stun"){
+    a.setLoop(THREE.LoopOnce,1);
+    a.clampWhenFinished=true;
+  }else{
+    a.setLoop(THREE.LoopRepeat,Infinity);
+    a.clampWhenFinished=false;
+  }
   rakeActionName=state;
 }
 
