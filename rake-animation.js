@@ -16,23 +16,35 @@ export class RakeAnimationController {
   async load() {
     try {
       const gltf = await this.loader.loadAsync(this.url);
+      if (!gltf || !gltf.scene) throw new Error('Rake GLB contains no scene');
+
       this.root = gltf.scene;
+      this.root.visible = false;
       this.root.traverse((o) => {
         if (o.isMesh) {
-          o.castShadow = true;
-          o.receiveShadow = true;
+          // Keep the imported character lightweight enough for browser GPUs.
+          o.castShadow = false;
+          o.receiveShadow = false;
+          o.frustumCulled = true;
         }
       });
+
       this.mixer = new THREE.AnimationMixer(this.root);
       for (const clip of gltf.animations || []) {
+        if (!clip || !clip.name) continue;
         const key = clip.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        this.actions.set(key, this.mixer.clipAction(clip));
+        if (key) this.actions.set(key, this.mixer.clipAction(clip));
       }
+
       this.ready = true;
       this.setState('idle', true);
       return this.root;
     } catch (error) {
       console.warn('[Rake] GLB load failed; using procedural fallback.', error);
+      this.ready = false;
+      this.root = null;
+      this.mixer = null;
+      this.actions.clear();
       return null;
     }
   }
@@ -40,7 +52,7 @@ export class RakeAnimationController {
   findAction(state) {
     const aliases = {
       idle: ['idle', 'breathing', 'stand', 'standing', 'walk', 'walking'],
-      walk: ['walk', 'walking'],
+      walk: ['walk', 'walking', 'idle', 'standing'],
       chase: ['chase', 'run', 'running', 'sprint', 'walk', 'walking'],
       attack: ['attack', 'attacking', 'slash', 'claw'],
       parry: ['parry', 'parried', 'stun', 'stunned', 'hit']
@@ -85,15 +97,19 @@ export class RakeAnimationController {
       const base = this.current === 'chase' ? 19 : 7;
       action.timeScale = THREE.MathUtils.clamp(movementSpeed / base, 0.75, 1.35);
     }
-    this.mixer.update(dt);
+    this.mixer.update(Math.min(dt, 0.05));
   }
 
   attachToAI(root) {
     if (!this.ready || !this.root) return false;
-    // The imported GLB replaces the old procedural Rake visuals.
+
+    // Hide the procedural meshes first, but leave the root itself active for AI/collision.
     root.traverse((o) => {
       if (o.isMesh) o.visible = false;
     });
+
+    this.root.position.set(0, 0, 0);
+    this.root.visible = true;
     root.add(this.root);
     return true;
   }
