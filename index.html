@@ -132,10 +132,21 @@ function playAnimation(name,instant=false){
 
 async function loadRake(){
   const status=$("loadStatus"),btn=$("begin");
+  const urls=[
+    "./assets/rake/rake.glb",
+    "https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/assets/rake/rake.glb"
+  ];
   try{
     const loader=new GLTFLoader();
-    const gltf=await loader.loadAsync("./assets/rake/rake.glb");
-    if(!gltf.scene)throw new Error("GLB contains no scene.");
+    let gltf=null;
+    for(const url of urls){
+      try{
+        status.textContent=url.startsWith("http")?"Loading Rake from GitHub storage...":"Loading Rake model...";
+        gltf=await loader.loadAsync(url);
+        if(gltf?.scene)break;
+      }catch(err){ console.warn("Rake load attempt failed:",url,err); }
+    }
+    if(!gltf?.scene)throw new Error("Could not fetch the Rake GLB from the local path or GitHub storage.");
     rakeModel=gltf.scene;
     normalizeModel(rakeModel);
     rakeModel.traverse(o=>{
@@ -146,8 +157,7 @@ async function loadRake(){
       const mats=Array.isArray(o.material)?o.material:[o.material];
       for(const m of mats){
         if(m.map){m.map.colorSpace=THREE.SRGBColorSpace;m.map.anisotropy=1;m.map.needsUpdate=true}
-        m.side=THREE.DoubleSide;
-        m.needsUpdate=true;
+        m.side=THREE.DoubleSide;m.needsUpdate=true;
       }
     });
     rake.add(rakeModel);
@@ -162,7 +172,7 @@ async function loadRake(){
     show("Rake animation system ready");
   }catch(e){
     console.error(e);
-    status.textContent="Rake GLB failed: "+(e.message||e);
+    status.textContent="Rake GLB failed: "+(e?.message||e);
     btn.textContent="RAKE LOAD FAILED";
   }
 }
