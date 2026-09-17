@@ -1,376 +1,288 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Rake — Whispering Pines</title>
+<title>The Rake — Three.js Whispering Pines</title>
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;color:#eee;font:14px Arial,sans-serif}
-#game{display:block;width:100%;height:100%}
-.panel{position:fixed;z-index:5;background:rgba(5,12,8,.9);border:1px solid #405447;border-radius:10px;padding:12px;box-sizing:border-box}
-#hud{left:14px;top:14px;width:250px}
-#help{right:14px;top:14px;max-width:310px}
-#cross{position:fixed;z-index:4;left:50%;top:50%;width:18px;height:18px;transform:translate(-50%,-50%);pointer-events:none}
-#cross:before,#cross:after{content:"";position:absolute;background:#fff}
-#cross:before{left:0;top:8px;width:18px;height:2px}.#cross:after{left:8px;top:0;width:2px;height:18px}
-#cross:after{left:8px;top:0;width:2px;height:18px}
-#start{position:fixed;z-index:20;inset:0;display:grid;place-items:center;background:rgba(1,4,2,.97)}
-#startBox{text-align:center;padding:30px;max-width:620px}
-h1{font-size:54px;letter-spacing:5px;margin:0 0 8px}
-button{font-size:20px;padding:14px 34px;border-radius:8px;border:1px solid #779281;background:#15251b;color:#fff;cursor:pointer}
-button:hover{background:#1d3325}
-.bar{height:8px;background:#111;border:1px solid #39483e;border-radius:8px;overflow:hidden;margin:5px 0 9px}.fill{height:100%;background:#68cf7e}.red{background:#d54f4f}
-#banner{position:fixed;z-index:10;left:50%;top:18px;transform:translateX(-50%);opacity:0;transition:opacity .15s}.show{opacity:1!important}
-small{color:#aebbb2}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020303;color:#eee;font:14px Arial,sans-serif}
+#game{width:100%;height:100%;display:block}
+#hud{position:fixed;left:14px;top:14px;z-index:5;padding:12px 15px;min-width:245px;background:rgba(3,7,5,.82);border:1px solid #4c6254;border-radius:10px;line-height:1.65}
+#help{position:fixed;right:14px;top:14px;z-index:5;padding:12px 15px;background:rgba(3,7,5,.82);border:1px solid #4c6254;border-radius:10px;line-height:1.6}
+#start{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(1,3,2,.97)}
+#box{text-align:center;width:min(650px,92vw)}h1{font-size:58px;letter-spacing:8px;margin:0 0 5px}
+button{padding:14px 34px;border:1px solid #718d7b;border-radius:8px;background:#17261c;color:white;font-size:19px;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}small{color:#aebbb2}.bar{height:8px;background:#111;border:1px solid #39483e;border-radius:8px;overflow:hidden;margin:3px 0 6px}.fill{height:100%;width:100%;background:#68cf7e}.red{background:#d54f4f}
+#banner{position:fixed;z-index:10;left:50%;top:18px;transform:translateX(-50%);padding:10px 18px;background:rgba(4,8,6,.9);border:1px solid #68806f;border-radius:8px;opacity:0;transition:.15s}
+#cross{position:fixed;left:50%;top:50%;z-index:4;width:16px;height:16px;transform:translate(-50%,-50%);pointer-events:none}
+#cross:before,#cross:after{content:"";position:absolute;background:#fff}.#cross:before{left:0;top:7px;width:16px;height:2px}#cross:before{left:0;top:7px;width:16px;height:2px}#cross:after{left:7px;top:0;width:2px;height:16px}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="hud" class="panel">
-<b id="phase">NIGHT</b><br>Time: <span id="time">7:30 PM</span><br>
-Rake: <span id="state">SEARCHING</span><br>Target: <span id="target">—</span><br>
-Distance: <span id="distance">—</span><br>Survivors: <span id="survivors">5</span><br>
+<div id="hud">
+<b id="phase">NIGHT</b><br>
+Time: <span id="time">7:30 PM</span><br>
+Rake animation: <b id="anim">WALKING</b><br>
+Rake state: <span id="state">SEARCHING</span><br>
+Distance: <span id="dist">—</span><br>
 Player HP: <span id="hp">100</span><div class="bar"><div id="pf" class="fill"></div></div>
 Rake HP: <span id="rhp">15000</span><div class="bar"><div id="rf" class="fill red"></div></div>
 </div>
-<div id="help" class="panel">WASD / arrows: move<br>Shift: sprint<br>Mouse: look<br>Click or Space: stunstick<br>R: respawn</div>
-<div id="cross"></div><div id="banner" class="panel"></div>
-<div id="start"><div id="startBox"><h1>THE RAKE</h1><p>WHISPERING PINES — 3D NIGHT SURVIVAL</p><p><small>Stable browser edition. Uploaded Rake GLB, AI chase, attack and parry.</small></p><button id="begin" type="button">ENTER THE FOREST</button></div></div>
+<div id="help">WASD / arrows — move<br>Shift — sprint<br>Mouse — look<br>Click / Space — stunstick / parry<br>R — respawn</div>
+<div id="cross"></div><div id="banner"></div>
+<div id="start"><div id="box">
+<h1>THE RAKE</h1>
+<p>WHISPERING PINES — THREE.JS SURVIVAL</p>
+<p><small id="loadStatus">Loading the animated Rake GLB…</small></p>
+<button id="begin" disabled>LOADING RAKE…</button>
+</div></div>
 
-<script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js"}}
-</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js"}}</script>
 <script type="module">
 import * as THREE from "three";
-import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/loaders/GLTFLoader.js";
+import {GLTFLoader} from "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/loaders/GLTFLoader.js";
 
-const canvas=document.getElementById("game");
-let renderer;
-try{
-  renderer=new THREE.WebGLRenderer({canvas,antialias:false,powerPreference:"high-performance"});
-}catch(e){
-  document.getElementById("startBox").innerHTML="<h1>THE RAKE</h1><p>WebGL could not start in this browser.</p><p>Try Chrome hardware acceleration.</p>";
-  throw e;
-}
+const $=id=>document.getElementById(id);
+const canvas=$("game");
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:"high-performance"});
 renderer.setSize(innerWidth,innerHeight,false);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.25));
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x020604);
-scene.fog=new THREE.Fog(0x020604,35,190);
+scene.fog=new THREE.Fog(0x020604,35,180);
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,300);
 
-const hemi=new THREE.HemisphereLight(0x9db9aa,0x10150d,1.35);
-scene.add(hemi);
-const moon=new THREE.DirectionalLight(0xb8d0ff,1.1);
-moon.position.set(-40,70,25);
-scene.add(moon);
+scene.add(new THREE.HemisphereLight(0x9db9aa,0x10150d,1.15));
+const moon=new THREE.DirectionalLight(0xb8d0ff,1.35);
+moon.position.set(-45,70,25);moon.castShadow=true;moon.shadow.mapSize.set(1024,1024);scene.add(moon);
 
-const mat={
- ground:new THREE.MeshStandardMaterial({color:0x142019,roughness:1}),
- trunk:new THREE.MeshStandardMaterial({color:0x3a2b1d,roughness:1}),
- pine:new THREE.MeshStandardMaterial({color:0x18231b,roughness:1}),
- rake:new THREE.MeshStandardMaterial({color:0x777e79,roughness:.95}),
- dark:new THREE.MeshStandardMaterial({color:0x171b19,roughness:1}),
- mouth:new THREE.MeshBasicMaterial({color:0x090103}),
- tooth:new THREE.MeshStandardMaterial({color:0xd7d0b8}),
- claw:new THREE.MeshStandardMaterial({color:0xb9b4a4}),
- eye:new THREE.MeshBasicMaterial({color:0xff1820}),
- survivor:new THREE.MeshStandardMaterial({color:0x496b59})
-};
-
-const floor=new THREE.Mesh(new THREE.PlaneGeometry(440,440),mat.ground);
-floor.rotation.x=-Math.PI/2;scene.add(floor);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(440,440),new THREE.MeshStandardMaterial({color:0x142019,roughness:1}));
+ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
 
 const obstacles=[];
-function addObstacle(x,z,w,d){
-  obstacles.push({x,z,w,d});
-  const m=new THREE.Mesh(new THREE.BoxGeometry(w,1.4,d),mat.pine);
-  m.position.set(x,.7,z);scene.add(m);
-}
-for(let i=0;i<24;i++){
-  const x=(Math.random()-.5)*380,z=(Math.random()-.5)*380;
-  if(Math.hypot(x,z)>30)addObstacle(x,z,2+Math.random()*3,2+Math.random()*3);
-}
-
-const treeTrunk=new THREE.CylinderGeometry(.8,1.25,14,6);
-const treeTop=new THREE.ConeGeometry(5.2,9,7);
-for(let i=0;i<75;i++){
+const trunkGeo=new THREE.CylinderGeometry(.75,1.2,14,6), pineGeo=new THREE.ConeGeometry(5,9,7);
+const trunkMat=new THREE.MeshStandardMaterial({color:0x3a2b1d,roughness:1});
+const pineMat=new THREE.MeshStandardMaterial({color:0x18231b,roughness:1});
+for(let i=0;i<70;i++){
   let x=(Math.random()-.5)*390,z=(Math.random()-.5)*390;
   if(Math.hypot(x,z)<38){i--;continue}
   const h=10+Math.random()*13;
-  const t=new THREE.Mesh(treeTrunk,mat.trunk);t.scale.y=h/14;t.position.set(x,h/2,z);scene.add(t);
-  const a=new THREE.Mesh(treeTop,mat.pine);a.position.set(x,h-2.5,z);a.scale.set(1,1.05,1);scene.add(a);
-  const b=new THREE.Mesh(treeTop,mat.pine);b.position.set(x,h-7,z);b.scale.set(.78,.85,.78);scene.add(b);
+  const a=new THREE.Mesh(trunkGeo,trunkMat);a.scale.y=h/14;a.position.set(x,h/2,z);a.castShadow=true;scene.add(a);
+  const b=new THREE.Mesh(pineGeo,pineMat);b.position.set(x,h-2.5,z);b.scale.set(1,1.05,1);b.castShadow=true;scene.add(b);
+  const c=new THREE.Mesh(pineGeo,pineMat);c.position.set(x,h-7,z);c.scale.set(.78,.85,.78);c.castShadow=true;scene.add(c);
+}
+for(let i=0;i<22;i++){
+  const x=(Math.random()-.5)*360,z=(Math.random()-.5)*360;
+  if(Math.hypot(x,z)<35){i--;continue}
+  const w=2+Math.random()*3,d=2+Math.random()*3;
+  obstacles.push({x,z,w,d});
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,1.4,d),pineMat);m.position.set(x,.7,z);m.castShadow=true;scene.add(m);
 }
 
-function partSphere(parent,pos,scale,material){
-  const m=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),material);
-  m.position.set(...pos);m.scale.set(...scale);parent.add(m);return m;
-}
-function makeRake(){
-  const root=new THREE.Group();
-  root.position.set(28,0,-38);
-  root.userData={anim:"walk",phase:0,attack:0,stun:0,hp:15000};
-  return root;
-}
-const rake=makeRake();
+const rake=new THREE.Group();
+rake.position.set(28,0,-38);
+rake.userData={hp:15000,stun:0,attack:0,state:"walking"};
 scene.add(rake);
 
-// Your uploaded GLB is the ONLY Rake visual. No procedural Rake is created.
-let rakeGLB=null,rakeMixer=null,rakeActions={},rakeActionName="",rakeLoaded=false,rakeLoadError=null;
-
-async function loadUploadedRake(){
-  const btn=document.getElementById("begin");
-  const note=document.querySelector("#startBox small");
-  btn.disabled=true;
-  btn.textContent="LOADING RAKE MODEL…";
-  note.textContent="Loading the Rake model in safe static mode…";
-
-  try{
-    const loader=new GLTFLoader();
-    loader.setCrossOrigin("anonymous");
-
-    // Try the normal repo-relative path first, then the raw GitHub copy.
-    // The second path also lets the model load when index.html is opened
-    // directly instead of through a web server.
-    const modelUrls=[
-      "./assets/rake/rake.glb",
-      "https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/assets/rake/rake.glb"
-    ];
-
-    let gltf=null;
-    let lastError=null;
-    for(const url of modelUrls){
-      try{
-        gltf=await new Promise((resolve,reject)=>{
-          loader.load(url,resolve,undefined,reject);
-        });
-        if(gltf?.scene)break;
-      }catch(err){
-        lastError=err;
-        console.warn("[Rake GLB] load attempt failed:",url,err);
-      }
-    }
-    if(!gltf || !gltf.scene){
-      const detail=lastError?.message||lastError?.statusText||"Could not fetch or parse the GLB.";
-      throw new Error("GLB load/parse failed: "+detail);
-    }
-
-    const root=gltf.scene;
-    root.visible=false;
-
-    // IMPORTANT: this GLB is a skinned Roblox/Blender export with a BLEND,
-    // double-sided material and 3 animations. Those features can trigger
-    // browser/GPU instability on some systems. Keep the imported geometry
-    // but replace the expensive material with a simple alpha-tested material.
-    root.traverse(o=>{
-      if(!o.isMesh)return;
-      o.visible=true;
-      o.castShadow=false;
-      o.receiveShadow=false;
-      o.frustumCulled=true;
-
-      const old=Array.isArray(o.material)?o.material[0]:o.material;
-      if(old){
-        const map=old.map||null;
-        o.material=new THREE.MeshBasicMaterial({
-          map,
-          color:0xffffff,
-          transparent:false,
-          alphaTest:map?.format===THREE.RGBAFormat?0.35:0,
-          side:THREE.DoubleSide,
-          depthWrite:true,
-          depthTest:true
-        });
-        if(map){
-          map.anisotropy=1;
-          map.generateMipmaps=true;
-          map.colorSpace=THREE.SRGBColorSpace;
-          map.needsUpdate=true;
-        }
-      }
-    });
-
-    // Normalize the imported model once. Do not modify its bone hierarchy.
-    root.updateMatrixWorld(true);
-    const box=new THREE.Box3().setFromObject(root);
-    const size=box.getSize(new THREE.Vector3());
-    if(!Number.isFinite(size.y) || size.y<=0.0001) throw new Error("The Rake GLB has an invalid bounding box.");
-
-    const center=box.getCenter(new THREE.Vector3());
-    const scale=9.0/size.y;
-    root.scale.setScalar(scale);
-    root.position.set(-center.x*scale,-box.min.y*scale,-center.z*scale);
-
-    rake.add(root);
-    rakeGLB=root;
-
-    // Deliberately do NOT create AnimationMixer/AnimationActions here.
-    // The game remains stable even if one of the GLB's animation tracks is
-    // incompatible with the browser runtime. The model itself is preserved.
-    rakeMixer=null;
-    rakeActions={};
-    rakeActionName="";
-
-    root.visible=true;
-    rakeLoaded=true;
-    btn.disabled=false;
-    btn.textContent="ENTER THE FOREST";
-    note.textContent="Rake model ready. Safe static rendering enabled.";
-    showBanner("Rake GLB loaded safely");
-  }catch(e){
-    rakeLoadError=e;
-    console.error("[Rake GLB] Safe static load failed:",e);
-    rakeGLB=null;
-    rakeMixer=null;
-    rakeActions={};
-    const msg=e?.message||"Unknown model error";
-    btn.disabled=true;
-    btn.textContent="RAKE MODEL FAILED";
-    note.textContent="The Rake model could not be loaded: "+msg;
-  }
+let rakeModel=null,mixer=null,actions={},activeAction=null,activeName="";
+function normalizeModel(root){
+  root.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(root);
+  const size=box.getSize(new THREE.Vector3());
+  if(!Number.isFinite(size.y)||size.y<.001)throw new Error("Invalid Rake model bounds.");
+  const center=box.getCenter(new THREE.Vector3());
+  const scale=9/size.y;
+  root.scale.setScalar(scale);
+  root.position.set(-center.x*scale,-box.min.y*scale,-center.z*scale);
 }
-
-function findGLBAction(state){
-  const aliases={
-    idle:["idle","breathing","stand","standing","walk","walking"],
-    walk:["walk","walking","idle","standing"],
-    chase:["chase","run","running","sprint","walk","walking"],
-    attack:["attack","attacking","slash","claw"],
-    stun:["parry","parried","stun","stunned","hit"]
-  };
-  for(const n of aliases[state]||[]){
-    const key=n.replace(/[^a-z0-9]/g,"");
-    if(rakeActions[key])return rakeActions[key];
+function findAction(names){
+  for(const n of names){
+    const k=n.toLowerCase().replace(/[^a-z0-9]/g,"");
+    if(actions[k])return actions[k];
   }
   return null;
 }
-
-function setGLBAnimation(state,immediate=false){
-  if(!rakeMixer)return;
-  const a=findGLBAction(state);
-  if(!a)return;
-  if(rakeActionName===state&&!immediate)return;
-  for(const key in rakeActions){
-    if(rakeActions[key]!==a)rakeActions[key].fadeOut(immediate?0:.1);
-  }
-  a.reset().fadeIn(immediate?0:.1).play();
-  if(state==="attack"||state==="stun"){
-    a.setLoop(THREE.LoopOnce,1);
-    a.clampWhenFinished=true;
+function playAnimation(name,instant=false){
+  if(!mixer)return;
+  let clipNames;
+  if(name==="attack")clipNames=["attack","attacking","slash","claw"];
+  else if(name==="parry")clipNames=["parry","parried","stun","stunned","hit"];
+  else if(name==="walking")clipNames=["walking","walk","run","running"];
+  else clipNames=["walking","walk","idle","standing"];
+  const action=findAction(clipNames);
+  if(!action)return;
+  if(activeAction===action)return;
+  if(activeAction)activeAction.fadeOut(instant?0:.12);
+  action.reset().fadeIn(instant?0:.12).play();
+  if(name==="attack"||name==="parry"){
+    action.setLoop(THREE.LoopOnce,1);
+    action.clampWhenFinished=true;
   }else{
-    a.setLoop(THREE.LoopRepeat,Infinity);
-    a.clampWhenFinished=false;
+    action.setLoop(THREE.LoopRepeat,Infinity);
+    action.clampWhenFinished=false;
   }
-  rakeActionName=state;
+  activeAction=action;activeName=name;
+  $("anim").textContent=name.toUpperCase();
 }
 
-let dtGlobal=0;
+async function loadRake(){
+  const status=$("loadStatus"),btn=$("begin");
+  try{
+    const loader=new GLTFLoader();
+    const gltf=await loader.loadAsync("./assets/rake/rake.glb");
+    if(!gltf.scene)throw new Error("GLB contains no scene.");
+    rakeModel=gltf.scene;
+    normalizeModel(rakeModel);
+    rakeModel.traverse(o=>{
+      if(!o.isMesh)return;
+      o.castShadow=false;o.receiveShadow=false;o.frustumCulled=true;
+      if(Array.isArray(o.material))o.material=o.material.map(m=>m.clone());
+      else if(o.material)o.material=o.material.clone();
+      const mats=Array.isArray(o.material)?o.material:[o.material];
+      for(const m of mats){
+        if(m.map){m.map.colorSpace=THREE.SRGBColorSpace;m.map.anisotropy=1;m.map.needsUpdate=true}
+        m.side=THREE.DoubleSide;
+        m.needsUpdate=true;
+      }
+    });
+    rake.add(rakeModel);
+    mixer=new THREE.AnimationMixer(rakeModel);
+    for(const clip of gltf.animations||[]){
+      const key=clip.name.toLowerCase().replace(/[^a-z0-9]/g,"");
+      actions[key]=mixer.clipAction(clip);
+    }
+    playAnimation("walking",true);
+    btn.disabled=false;btn.textContent="ENTER THE FOREST";
+    status.textContent="Animated Rake ready — walking, attack and parry animations loaded.";
+    show("Rake animation system ready");
+  }catch(e){
+    console.error(e);
+    status.textContent="Rake GLB failed: "+(e.message||e);
+    btn.textContent="RAKE LOAD FAILED";
+  }
+}
+
 const player={pos:new THREE.Vector3(0,1.7,12),yaw:0,pitch:0,hp:100,dead:false};
-const survivors=[];
-for(let i=0;i<5;i++){
-  const g=new THREE.Group();const b=new THREE.Mesh(new THREE.CapsuleGeometry(.4,.85,4,7),mat.survivor);b.position.y=1;
-  const h=new THREE.Mesh(new THREE.SphereGeometry(.32,8,6),mat.rake);h.position.y=1.8;g.add(b,h);
-  g.position.set((i-2)*5,0,5+Math.sin(i)*4);scene.add(g);survivors.push({mesh:g,hp:100,dead:false,name:"Survivor "+(i+1)});
-}
 camera.position.copy(player.pos);
+const survivors=[];
+for(let i=0;i<4;i++){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.4,.85,4,7),new THREE.MeshStandardMaterial({color:0x496b59}));
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.32,8,6),new THREE.MeshStandardMaterial({color:0x777e79}));
+  body.position.y=1;head.position.y=1.8;g.add(body,head);
+  g.position.set((i-1.5)*6,0,5+Math.sin(i)*5);scene.add(g);
+  survivors.push({mesh:g,hp:100,dead:false,name:"Survivor "+(i+1)});
+}
+const keys={};let started=false,last=performance.now(),clock=1170,stunCD=0,target=null;
 
-const keys={};let started=false,last=performance.now(),clock=1170,target=null,stunCD=0;
 addEventListener("keydown",e=>{
   keys[e.code]=true;
   if(e.code==="Space"){e.preventDefault();stunstick()}
   if(e.code==="KeyR"&&player.dead)respawn();
 });
 addEventListener("keyup",e=>keys[e.code]=false);
-document.getElementById("begin").disabled=true;
-loadUploadedRake();
-
-document.getElementById("begin").addEventListener("click",()=>{
-  if(!rakeLoaded)return;
-  started=true;
-  document.getElementById("start").style.display="none";
-  canvas.requestPointerLock?.();
-});
 addEventListener("mousemove",e=>{
   if(document.pointerLockElement!==canvas)return;
   player.yaw-=e.movementX*.0023;
-  player.pitch=Math.max(-1.3,Math.min(1.3,player.pitch-e.movementY*.0023));
+  player.pitch=Math.max(-1.25,Math.min(1.25,player.pitch-e.movementY*.0023));
 });
-addEventListener("click",()=>{if(started&&document.pointerLockElement!==canvas)canvas.requestPointerLock?.()});
+addEventListener("click",()=>{if(started){if(document.pointerLockElement!==canvas)canvas.requestPointerLock?.();else stunstick()}});
+$("begin").onclick=()=>{
+  if(!rakeModel)return;
+  started=true;$("start").style.display="none";canvas.requestPointerLock?.();
+};
 
+function show(t){const b=$("banner");b.textContent=t;b.style.opacity=1;clearTimeout(b.t);b.t=setTimeout(()=>b.style.opacity=0,1000)}
+function dist(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
+function forward(){return new THREE.Vector3(Math.sin(player.yaw),0,-Math.cos(player.yaw))}
 function blocked(p){
   if(Math.abs(p.x)>215||Math.abs(p.z)>215)return true;
   for(const s of obstacles)if(Math.abs(p.x-s.x)<s.w/2+.45&&Math.abs(p.z-s.z)<s.d/2+.45)return true;
   return false;
 }
-function distance(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
-function forward(){return new THREE.Vector3(Math.sin(player.yaw),0,-Math.cos(player.yaw))}
-function showBanner(t){const b=document.getElementById("banner");b.textContent=t;b.classList.add("show");clearTimeout(b.timer);b.timer=setTimeout(()=>b.classList.remove("show"),1200)}
 function chooseTarget(){
   const list=[{name:"YOU",pos:player.pos,obj:player},...survivors.filter(s=>!s.dead).map(s=>({name:s.name,pos:s.mesh.position,obj:s}))];
-  list.sort((a,b)=>distance(rake.position,a.pos)-distance(rake.position,b.pos));return list[0]||null;
+  list.sort((a,b)=>dist(rake.position,a.pos)-dist(rake.position,b.pos));return list[0]||null;
 }
 function damage(t,n){
-  if(t.obj===player){player.hp=Math.max(0,player.hp-n);if(player.hp<=0){player.dead=true;showBanner("THE RAKE GOT YOU — PRESS R")}}
-  else{t.obj.hp-=n;if(t.obj.hp<=0){t.obj.dead=true;t.obj.mesh.visible=false;showBanner(t.name+" was killed")}}
+  if(t.obj===player){player.hp=Math.max(0,player.hp-n);if(player.hp<=0){player.dead=true;show("THE RAKE GOT YOU — PRESS R")}}
+  else{t.obj.hp-=n;if(t.obj.hp<=0){t.obj.dead=true;t.obj.mesh.visible=false;show(t.name+" was killed")}}
 }
 function stunstick(){
   if(!started||player.dead||stunCD>0)return;
-  stunCD=.65;const d=distance(rake.position,player.pos);if(d>4.5)return;
+  stunCD=.65;
+  if(dist(rake.position,player.pos)>5)return;
   const to=rake.position.clone().sub(player.pos).normalize();
-  if(forward().dot(to)<.55)return;
-  rake.userData.stun=.65;rake.userData.anim="stun";
+  if(forward().dot(to)<.5)return;
+  rake.userData.stun=.75;rake.userData.state="parry";playAnimation("parry");
   const rf=new THREE.Vector3(Math.sin(rake.rotation.y),0,Math.cos(rake.rotation.y));
   const pt=player.pos.clone().sub(rake.position).normalize();
-  if(rf.dot(pt)>.55)showBanner("PARRIED");
-  else{rake.userData.hp=Math.max(0,rake.userData.hp-45);showBanner("45 DAMAGE")}
+  if(rf.dot(pt)>.45)show("PARRY");
+  else{rake.userData.hp=Math.max(0,rake.userData.hp-45);show("45 DAMAGE")}
 }
-function respawn(){player.dead=false;player.hp=100;player.pos.set(0,1.7,12);rake.position.set(28,0,-38);rake.userData.hp=15000;showBanner("YOU RESPAWNED")}
+function respawn(){
+  player.dead=false;player.hp=100;player.pos.set(0,1.7,12);
+  rake.position.set(28,0,-38);rake.userData.hp=15000;rake.userData.attack=0;
+  playAnimation("walking",true);show("RESPAWNED");
+}
 function updateAI(dt,night){
-  const u=rake.userData;u.stun=Math.max(0,u.stun-dt);
-  if(u.stun){u.anim="stun";return}
+  const u=rake.userData;
+  u.stun=Math.max(0,u.stun-dt);
+  if(u.stun>0){u.state="parry";return}
   target=chooseTarget();if(!target)return;
-  const d=distance(rake.position,target.pos);
-  if(!night){u.anim="idle";const dx=28-rake.position.x,dz=-38-rake.position.z;rake.position.x+=dx*dt*1.2;rake.position.z+=dz*dt*1.2;return}
-  if(d<3.2){u.anim="attack";u.attack+=dt;if(u.attack>.42&&u.attack<.48){damage(target,25)}if(u.attack>1)u.attack=0}
-  else{
-    u.attack=0;u.anim=d<45?"chase":"walk";
-    const sp=d<45?19:7,dx=target.pos.x-rake.position.x,dz=target.pos.z-rake.position.z,l=Math.hypot(dx,dz)||1;
-    rake.position.x+=dx/l*sp*dt;rake.position.z+=dz/l*sp*dt;rake.rotation.y=Math.atan2(dx,dz);u.phase+=dt*sp*.9;
+  const d=dist(rake.position,target.pos);
+  if(!night){
+    u.state="walking";
+    const dx=28-rake.position.x,dz=-38-rake.position.z;
+    if(Math.hypot(dx,dz)>.8){rake.position.x+=dx*dt*1.1;rake.position.z+=dz*dt*1.1;rake.rotation.y=Math.atan2(dx,dz);playAnimation("walking")}
+    else playAnimation("walking");
+    return;
+  }
+  if(d<3.3){
+    if(u.state!=="attack"){u.attack=0;playAnimation("attack")}
+    u.state="attack";u.attack+=dt;
+    if(u.attack>.4&&u.attack<.48)damage(target,25);
+    if(u.attack>1.05){u.attack=0;playAnimation("walking")}
+  }else{
+    u.state=d<45?"chase":"walking";
+    const speed=d<45?19:7;
+    const dx=target.pos.x-rake.position.x,dz=target.pos.z-rake.position.z,l=Math.hypot(dx,dz)||1;
+    rake.position.x+=dx/l*speed*dt;rake.position.z+=dz/l*speed*dt;
+    rake.rotation.y=Math.atan2(dx,dz);
+    playAnimation("walking");
   }
 }
-function animateRake(){
-  // The imported GLB is intentionally rendered statically for stability.
-  // AI movement/rotation is still handled by updateAI().
-}
-
-function update(dt){dtGlobal=dt;
+function update(dt){
   clock+=dt*1.57;if(clock>=1440)clock-=1440;
   const hour=Math.floor(clock/60)%24,min=Math.floor(clock%60),night=clock>=1140||clock<360;
-  document.getElementById("time").textContent=((hour%12)||12)+":"+String(min).padStart(2,"0")+" "+(hour<12?"AM":"PM");
-  document.getElementById("phase").textContent=night?"NIGHT":"DAY";
+  $("time").textContent=((hour%12)||12)+":"+String(min).padStart(2,"0")+" "+(hour<12?"AM":"PM");
+  $("phase").textContent=night?"NIGHT":"DAY";
   if(!started)return;
   stunCD=Math.max(0,stunCD-dt);
   if(!player.dead){
     const f=forward(),r=new THREE.Vector3(Math.cos(player.yaw),0,Math.sin(player.yaw)),v=new THREE.Vector3();
-    if(keys.KeyW||keys.ArrowUp)v.add(f);if(keys.KeyS||keys.ArrowDown)v.sub(f);if(keys.KeyD||keys.ArrowRight)v.add(r);if(keys.KeyA||keys.ArrowLeft)v.sub(r);
+    if(keys.KeyW||keys.ArrowUp)v.add(f);if(keys.KeyS||keys.ArrowDown)v.sub(f);
+    if(keys.KeyD||keys.ArrowRight)v.add(r);if(keys.KeyA||keys.ArrowLeft)v.sub(r);
     if(v.lengthSq()){v.normalize().multiplyScalar((keys.ShiftLeft||keys.ShiftRight)?9:5.5);const n=player.pos.clone().add(v.multiplyScalar(dt));if(!blocked(n))player.pos.copy(n)}
     camera.position.copy(player.pos);
     camera.lookAt(player.pos.clone().add(new THREE.Vector3(Math.sin(player.yaw)*Math.cos(player.pitch),Math.sin(player.pitch),-Math.cos(player.yaw)*Math.cos(player.pitch))));
   }
-  updateAI(dt,night);animateRake();
-  document.getElementById("state").textContent=rake.userData.anim.toUpperCase();
-  document.getElementById("target").textContent=target?.name||"—";
-  document.getElementById("distance").textContent=target?distance(rake.position,target.pos).toFixed(1)+" studs":"—";
-  document.getElementById("hp").textContent=Math.round(player.hp);document.getElementById("pf").style.width=player.hp+"%";
-  document.getElementById("rhp").textContent=Math.round(rake.userData.hp);document.getElementById("rf").style.width=(rake.userData.hp/150)+"%";
-  document.getElementById("survivors").textContent=survivors.filter(s=>!s.dead).length;
+  updateAI(dt,night);
+  if(mixer)mixer.update(dt);
+  $("state").textContent=rake.userData.state.toUpperCase();
+  $("dist").textContent=target?dist(rake.position,target.pos).toFixed(1)+" studs":"—";
+  $("hp").textContent=Math.round(player.hp);$("pf").style.width=player.hp+"%";
+  $("rhp").textContent=Math.round(rake.userData.hp);$("rf").style.width=(rake.userData.hp/150)+"%";
 }
 function loop(t){const dt=Math.min(.05,(t-last)/1000);last=t;update(dt);renderer.render(scene,camera);requestAnimationFrame(loop)}
 requestAnimationFrame(loop);
 addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)});
+loadRake();
 </script>
 </body>
 </html>
