@@ -154,7 +154,7 @@ async function loadUploadedRake(){
           map,
           color:0xffffff,
           transparent:false,
-          alphaTest:map?.format===THREE.RGBAFormat?.35:0,
+          alphaTest:map?.format===THREE.RGBAFormat?0.35:0,
           side:THREE.DoubleSide,
           depthWrite:true,
           depthTest:true
