@@ -1,15 +1,253 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Rake — Whispering Pines 3D</title><style>html,body{margin:0;overflow:hidden;background:#020504;color:#eee;font:14px Arial}.hud,.help,.start,.banner{position:fixed;z-index:10;background:#06100ddd;border:1px solid #33483b;border-radius:10px;padding:12px}.hud{left:15px;top:15px;min-width:250px}.help{right:15px;top:15px}.banner{left:50%;top:18px;transform:translateX(-50%);opacity:0}.banner.show{opacity:1}.start{inset:0;display:grid;place-items:center;background:#010302f5;border:0;border-radius:0}.start>div{text-align:center;max-width:620px}.start h1{font-size:46px;margin:0 0 8px}.start button{position:relative;z-index:20;pointer-events:auto;font-size:20px;padding:14px 32px;background:#16271d;color:white;border:1px solid #66856e;border-radius:8px;cursor:pointer}.bar{height:9px;background:#111;border:1px solid #455;border-radius:8px;margin:5px 0 9px;overflow:hidden}.fill{height:100%;width:100%;background:#64c878}.red{background:#d34c4c}.cross{position:fixed;z-index:8;left:50%;top:50%;width:18px;height:18px;transform:translate(-50%,-50%);pointer-events:none}.cross:before,.cross:after{content:"";position:absolute;background:#fff}.cross:before{width:18px;height:2px;top:8px}.cross:after{width:2px;height:18px;left:8px}</style></head><body><div id="start" class="start"><div><h1>THE RAKE</h1><p>WHISPERING PINES — 3D NIGHT SURVIVAL</p><p>Sphere head and jaw, oval long arms, forward claws, individual teeth, and animated creature posing.</p><button id="begin">ENTER THE FOREST</button></div></div><div class="hud"><b id="phase">NIGHT</b><div>Time: <span id="time">7:30 PM</span></div><div>Rake: <span id="state">SEARCHING</span></div><div>Target: <span id="target">—</span></div><div>Distance: <span id="distance">—</span></div><div>Survivors: <span id="survivors">5</span></div><div>Player HP: <span id="hp">100</span></div><div class="bar"><div id="pf" class="fill"></div></div><div>Rake HP: <span id="rhp">15000</span></div><div class="bar"><div id="rf" class="fill red"></div></div></div><div class="help">WASD move • Shift sprint • Mouse look • Click / Space stunstick • R respawn</div><div class="cross"></div><div id="banner" class="banner"></div><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script><script type="module">import*as THREE from'three';
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x020604);scene.fog=new THREE.Fog(0x020604,30,230);const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.05,500),renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance",failIfMajorPerformanceCaveat:false});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));renderer.shadowMap.enabled=true;document.body.appendChild(renderer.domElement);scene.add(new THREE.HemisphereLight(0x9db9aa,0x111509,1.2));const moon=new THREE.DirectionalLight(0xb9d2ff,1.7);moon.position.set(-60,100,40);moon.castShadow=true;scene.add(moon);
-const M={ground:new THREE.MeshStandardMaterial({color:0x152018,roughness:1}),tree:new THREE.MeshStandardMaterial({color:0x20271e,roughness:1}),trunk:new THREE.MeshStandardMaterial({color:0x3c2b1c}),body:new THREE.MeshStandardMaterial({color:0x707874,roughness:.9}),dark:new THREE.MeshStandardMaterial({color:0x171b19,roughness:.95}),mouth:new THREE.MeshBasicMaterial({color:0x090203}),teeth:new THREE.MeshStandardMaterial({color:0xd8d3bd}),claw:new THREE.MeshStandardMaterial({color:0xbdb8a5}),eye:new THREE.MeshBasicMaterial({color:0xff1010}),surv:new THREE.MeshStandardMaterial({color:0x486b58})};const solids=[];
-const floor=new THREE.Mesh(new THREE.PlaneGeometry(500,500),M.ground);floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);function box(x,y,z,a,b,c,m,collide=false){const q=new THREE.Mesh(new THREE.BoxGeometry(a,b,c),m);q.position.set(x,y,z);q.castShadow=q.receiveShadow=true;scene.add(q);if(collide)solids.push({x,z,a,c});return q}for(let i=0;i<180;i++){const x=(Math.random()-.5)*430,z=(Math.random()-.5)*430;if(Math.hypot(x,z)<35)continue;const h=10+Math.random()*18,t=new THREE.Mesh(new THREE.CylinderGeometry(1,1.7,h,7),M.trunk);t.position.set(x,h/2,z);t.castShadow=true;scene.add(t);for(let j=0;j<3;j++){const b=new THREE.Mesh(new THREE.ConeGeometry(5,7,7),M.tree);b.position.set(x+(Math.random()-.5)*5,h-2-j*4,z+(Math.random()-.5)*5);b.castShadow=true;scene.add(b)}}for(let i=0;i<40;i++)box((Math.random()-.5)*400,.7,(Math.random()-.5)*400,2+Math.random()*3,1.4,2+Math.random()*3,M.tree);
-function oval(x,y,z,scale,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(1,12,10),mat);m.position.set(x,y,z);m.scale.set(scale[0],scale[1],scale[2]);m.castShadow=true;return m}function tooth(up){const t=new THREE.Mesh(new THREE.ConeGeometry(.075,.38,7),M.teeth);t.rotation.x=up?Math.PI:0;t.castShadow=true;return t}function claw(){const c=new THREE.Mesh(new THREE.ConeGeometry(.075,.85,7),M.claw);c.rotation.x=-Math.PI/2;c.position.z=-.42;c.castShadow=true;return c}
-function createRake(){const root=new THREE.Group();root.scale.set(1.08,1.08,1.08);const pelvis=oval(0,2.25,0,[.72,.58,.62],M.dark);root.add(pelvis);const torso=oval(0,3.35,.05,[.78,1.35,.62],M.body);torso.rotation.x=-.08;root.add(torso);const chest=oval(0,4.25,.02,[.9,.72,.65],M.body);root.add(chest);const neck=oval(0,4.95,.03,[.28,.55,.3],M.dark);root.add(neck);const head=new THREE.Group();head.position.set(0,5.62,-.08);root.add(head);const skull=oval(0,0,0,[.9,1.02,.84],M.body);head.add(skull);const brow=oval(0,.2,-.68,[.62,.12,.16],M.dark);head.add(brow);for(const s of[-1,1]){const eye=oval(s*.3,.08,-.74,[.105,.105,.06],M.eye);head.add(eye)}for(let i=0;i<9;i++){const t=tooth(true);t.position.set(-.5+i*.125,-.32,-.7);head.add(t)}const jaw=new THREE.Group();jaw.name='jaw';jaw.position.set(0,-.48,-.48);head.add(jaw);const jawSphere=oval(0,0,0,[.7,.42,.58],M.body);jaw.add(jawSphere);const lowerMouth=new THREE.Mesh(new THREE.BoxGeometry(.96,.3,.1),M.mouth);lowerMouth.position.set(0,.08,-.55);jaw.add(lowerMouth);for(let i=0;i<9;i++){const t=tooth(false);t.position.set(-.5+i*.125,.18,-.65);jaw.add(t)}const arms=[],legs=[];for(const s of[-1,1]){const upper=oval(s*.88,4.15,.02,[.32,1.65,.34],M.dark);upper.rotation.z=-s*.13;upper.name=s<0?'armLUpper':'armRUpper';root.add(upper);const fore=oval(s*1.02,2.55,-.03,[.25,1.45,.28],M.body);fore.rotation.z=-s*.09;fore.name=s<0?'armLLower':'armRLower';root.add(fore);const hand=oval(s*1.03,1.18,-.04,[.28,.32,.32],M.dark);root.add(hand);for(let k=-1;k<=1;k++){const c=claw();c.position.set(s*1.03+k*.15,1.03,-.38);c.rotation.z=k*.15;root.add(c)}arms.push({upper,fore});const thigh=oval(s*.43,2.0,.05,[.35,1.15,.38],M.dark);thigh.rotation.z=-s*.07;root.add(thigh);const shin=oval(s*.48,.75,-.03,[.26,1.15,.28],M.body);shin.rotation.z=s*.05;root.add(shin);const foot=oval(s*.48,-.28,-.2,[.3,.22,.62],M.dark);root.add(foot);legs.push({thigh,shin})}root.userData={head,jaw,arms,legs,phase:0,anim:'idle',attackT:0,stun:0,hp:15000};return root}const rake=createRake();rake.position.set(35,0,-80);scene.add(rake);
-let rakeMixer=null;let rakeGLBStarted=false;async function loadRakeGLB(){if(rakeGLBStarted)return;rakeGLBStarted=true;try{const mod=await import('./rake-animation.js');rakeMixer=new mod.RakeAnimationController(scene,{url:'assets/rake/rake.glb'});const model=await rakeMixer.load();if(!model)return;model.position.set(0,0,0);model.scale.set(1,1,1);rake.userData.glb=model;if(rakeMixer.attachToAI(rake)){rake.userData.usingGLB=true;banner('Rake GLB animations loaded')}}catch(e){console.warn('[Rake] GLB unavailable; procedural Rake remains active',e)}}
-const player={pos:new THREE.Vector3(0,1.7,12),yaw:0,pitch:0,hp:100,dead:false};camera.position.copy(player.pos);const survivors=[];for(let i=0;i<5;i++){const g=new THREE.Group(),b=new THREE.Mesh(new THREE.CapsuleGeometry(.42,.9,5,8),M.surv),h=new THREE.Mesh(new THREE.SphereGeometry(.35,8,8),M.body);b.position.y=1;h.position.y=1.85;g.add(b,h);g.position.set((i-2)*5,0,5+Math.sin(i)*5);scene.add(g);survivors.push({mesh:g,hp:100,dead:false,phase:i})}
-const keys={};addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='Space'){e.preventDefault();stun()}if(e.code==='KeyR'&&player.dead)respawn()});addEventListener('keyup',e=>keys[e.code]=false);let started=false;const beginButton=document.getElementById('begin');beginButton.addEventListener('click',()=>{if(started)return;started=true;document.getElementById('start').style.display='none';renderer.domElement.requestPointerLock?.();loadRakeGLB()});document.addEventListener('mousemove',e=>{if(document.pointerLockElement!==renderer.domElement)return;player.yaw-=e.movementX*.0023;player.pitch-=e.movementY*.0023;player.pitch=Math.max(-1.35,Math.min(1.35,player.pitch))});
-function blocked(p){if(Math.abs(p.x)>235||Math.abs(p.z)>235)return true;for(const s of solids)if(Math.abs(p.x-s.x)<s.a/2+.5&&Math.abs(p.z-s.z)<s.c/2+.5)return true;return false}function move(o,v){const n=o.clone();if(!blocked(n))o.copy(n)}function look(){return new THREE.Vector3(Math.sin(player.yaw),0,-Math.cos(player.yaw))}function dist(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}function banner(t){const b=document.getElementById('banner');b.textContent=t;b.classList.add('show');clearTimeout(b.t);b.t=setTimeout(()=>b.classList.remove('show'),1400)}
-let target=null,clock=1170,stunCD=0;function choose(){const a=[{name:'YOU',pos:player.pos,obj:player},...survivors.filter(s=>!s.dead).map((s,i)=>({name:'Survivor '+(i+1),pos:s.mesh.position,obj:s}))];a.sort((x,y)=>dist(rake.position,x.pos)-dist(rake.position,y.pos));return a[0]}function hurt(t,n){if(t.obj===player){player.hp=Math.max(0,player.hp-n);if(player.hp<=0){player.dead=true;banner('THE RAKE GOT YOU — PRESS R')}}else{t.obj.hp-=n;if(t.obj.hp<=0){t.obj.dead=true;t.obj.mesh.visible=false;banner(t.name+' was killed')}}}function stun(){if(!started||stunCD||player.dead)return;stunCD=.65;const d=dist(rake.position,player.pos);if(d>4.5)return;const to=rake.position.clone().sub(player.pos).normalize();if(look().dot(to)<.55)return;rake.userData.anim='stun';rake.userData.stun=.65;rake.userData.jaw.rotation.x=0;const rf=new THREE.Vector3(Math.sin(rake.rotation.y),0,Math.cos(rake.rotation.y)),pt=player.pos.clone().sub(rake.position).normalize();if(rf.dot(pt)>.55)banner('PARRIED — THE RAKE BLOCKED IT');else{rake.userData.hp=Math.max(0,rake.userData.hp-45);banner('STUNSTICK HIT — 45 DAMAGE')}}function respawn(){player.dead=false;player.hp=100;player.pos.set(0,1.7,12);rake.position.set(35,0,-80);banner('YOU RESPAWNED')}
-function ai(dt,night){const u=rake.userData;u.stun=Math.max(0,u.stun-dt);if(u.stun){u.anim='stun';return}target=choose();if(!target)return;const d=dist(rake.position,target.pos);if(!night){u.anim='idle';rake.position.lerp(new THREE.Vector3(35,0,-80),Math.min(1,dt*1.5));return}if(d<3.2){u.anim='attack';u.attackT+=dt;if(u.attackT>.42&&u.attackT<.48){hurt(target,25);u.jaw.rotation.x=-.62}if(u.attackT>1)u.attackT=0}else{u.attackT=0;u.anim=d<45?'chase':'walk';const sp=d<45?19:7,dx=target.pos.x-rake.position.x,dz=target.pos.z-rake.position.z,l=Math.hypot(dx,dz)||1;rake.position.x+=dx/l*sp*dt;rake.position.z+=dz/l*sp*dt;rake.rotation.y=Math.atan2(dx,dz);u.phase+=dt*sp*.9}}
-function animate(){const u=rake.userData,s=Math.sin(u.phase),a=Math.abs(Math.sin(u.phase));if(u.anim==='walk'||u.anim==='chase'){const mult=u.anim==='chase'?1.2:1;u.legs[0].thigh.rotation.z=-.25*s*mult;u.legs[1].thigh.rotation.z=.25*s*mult;u.legs[0].shin.rotation.z=.12*s*mult;u.legs[1].shin.rotation.z=-.12*s*mult;u.arms[0].upper.rotation.z=-.2*s*mult;u.arms[1].upper.rotation.z=.2*s*mult;u.arms[0].fore.rotation.z=-.18*s*mult;u.arms[1].fore.rotation.z=.18*s*mult;u.head.rotation.y=Math.sin(u.phase*.55)*.1;u.jaw.rotation.x=.05+Math.sin(u.phase*1.8)*.025}else if(u.anim==='attack'){const p=Math.min(1,u.attackT/.55);u.arms[0].upper.rotation.z=-.9+Math.sin(p*Math.PI)*.2;u.arms[1].upper.rotation.z=.9-Math.sin(p*Math.PI)*.2;u.arms[0].fore.rotation.z=-.5;u.arms[1].fore.rotation.z=.5;u.legs[0].thigh.rotation.z=-.16;u.legs[1].thigh.rotation.z=.16;u.head.rotation.x=.2;u.jaw.rotation.x=Math.min(.75,Math.sin(u.attackT*8)*.75)}else if(u.anim==='stun'){u.arms[0].upper.rotation.z=.65;u.arms[1].upper.rotation.z=-.65;u.arms[0].fore.rotation.z=.35;u.arms[1].fore.rotation.z=-.35;u.head.rotation.z=.18}else{u.arms[0].upper.rotation.z=-.08;u.arms[1].upper.rotation.z=.08;u.arms[0].fore.rotation.z=-.05;u.arms[1].fore.rotation.z=.05;u.jaw.rotation.x=.03+Math.sin(performance.now()*.003)*.025;u.head.rotation.x=.04+Math.sin(performance.now()*.002)*.015}u.arms.forEach(x=>{x.upper.rotation.x=.12+.05*a;x.fore.rotation.x=.08})}
-function update(dt){clock+=dt*1.57;if(clock>=1440)clock-=1440;const night=clock>=1140||clock<360,h=Math.floor(clock/60)%24,m=Math.floor(clock%60);document.getElementById('time').textContent=((h%12)||12)+':'+String(m).padStart(2,'0')+' '+(h<12?'AM':'PM');document.getElementById('phase').textContent=night?'NIGHT':'DAY';if(!started)return;stunCD=Math.max(0,stunCD-dt);if(!player.dead){const f=look(),r=new THREE.Vector3(Math.cos(player.yaw),0,Math.sin(player.yaw)),v=new THREE.Vector3();if(keys.KeyW||keys.ArrowUp)v.add(f);if(keys.KeyS||keys.ArrowDown)v.sub(f);if(keys.KeyD||keys.ArrowRight)v.add(r);if(keys.KeyA||keys.ArrowLeft)v.sub(r);if(v.lengthSq()){v.normalize().multiplyScalar((keys.ShiftLeft||keys.ShiftRight)?9:5.5);const n=player.pos.clone().add(v.multiplyScalar(dt));if(!blocked(n))player.pos.copy(n)}camera.position.copy(player.pos);const lookAt=player.pos.clone().add(new THREE.Vector3(Math.sin(player.yaw)*Math.cos(player.pitch),Math.sin(player.pitch),-Math.cos(player.yaw)*Math.cos(player.pitch)));camera.lookAt(lookAt)}ai(dt,night);animate();if(rake.userData.usingGLB&&rakeMixer)rakeMixer.update(dt,rake.userData.anim,rake.userData.anim==='chase'?19:rake.userData.anim==='walk'?7:0);document.getElementById('state').textContent=rake.userData.anim.toUpperCase();document.getElementById('target').textContent=target?.name||'—';document.getElementById('distance').textContent=target?dist(rake.position,target.pos).toFixed(1)+' studs':'—';document.getElementById('hp').textContent=Math.round(player.hp);document.getElementById('pf').style.width=player.hp+'%';document.getElementById('rhp').textContent=Math.round(rake.userData.hp);document.getElementById('rf').style.width=(rake.userData.hp/150)+'%';document.getElementById('survivors').textContent=survivors.filter(s=>!s.dead).length}
-let last=performance.now();function loop(t){const dt=Math.min(.05,(t-last)/1000);last=t;update(dt);renderer.render(scene,camera);requestAnimationFrame(loop)}requestAnimationFrame(loop);addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});</script></body></html>
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Rake — Whispering Pines</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;color:#eee;font:14px Arial,sans-serif}
+#game{display:block;width:100%;height:100%}
+.panel{position:fixed;z-index:5;background:rgba(5,12,8,.9);border:1px solid #405447;border-radius:10px;padding:12px;box-sizing:border-box}
+#hud{left:14px;top:14px;width:250px}
+#help{right:14px;top:14px;max-width:310px}
+#cross{position:fixed;z-index:4;left:50%;top:50%;width:18px;height:18px;transform:translate(-50%,-50%);pointer-events:none}
+#cross:before,#cross:after{content:"";position:absolute;background:#fff}
+#cross:before{left:0;top:8px;width:18px;height:2px}.#cross:after{left:8px;top:0;width:2px;height:18px}
+#cross:after{left:8px;top:0;width:2px;height:18px}
+#start{position:fixed;z-index:20;inset:0;display:grid;place-items:center;background:rgba(1,4,2,.97)}
+#startBox{text-align:center;padding:30px;max-width:620px}
+h1{font-size:54px;letter-spacing:5px;margin:0 0 8px}
+button{font-size:20px;padding:14px 34px;border-radius:8px;border:1px solid #779281;background:#15251b;color:#fff;cursor:pointer}
+button:hover{background:#1d3325}
+.bar{height:8px;background:#111;border:1px solid #39483e;border-radius:8px;overflow:hidden;margin:5px 0 9px}.fill{height:100%;background:#68cf7e}.red{background:#d54f4f}
+#banner{position:fixed;z-index:10;left:50%;top:18px;transform:translateX(-50%);opacity:0;transition:opacity .15s}.show{opacity:1!important}
+small{color:#aebbb2}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud" class="panel">
+<b id="phase">NIGHT</b><br>Time: <span id="time">7:30 PM</span><br>
+Rake: <span id="state">SEARCHING</span><br>Target: <span id="target">—</span><br>
+Distance: <span id="distance">—</span><br>Survivors: <span id="survivors">5</span><br>
+Player HP: <span id="hp">100</span><div class="bar"><div id="pf" class="fill"></div></div>
+Rake HP: <span id="rhp">15000</span><div class="bar"><div id="rf" class="fill red"></div></div>
+</div>
+<div id="help" class="panel">WASD / arrows: move<br>Shift: sprint<br>Mouse: look<br>Click or Space: stunstick<br>R: respawn</div>
+<div id="cross"></div><div id="banner" class="panel"></div>
+<div id="start"><div id="startBox"><h1>THE RAKE</h1><p>WHISPERING PINES — 3D NIGHT SURVIVAL</p><p><small>Stable rebuilt browser edition. Lightweight forest, procedural Rake, AI chase, attack and parry.</small></p><button id="begin" type="button">ENTER THE FOREST</button></div></div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js"}}
+</script>
+<script type="module">
+import * as THREE from "three";
+
+const canvas=document.getElementById("game");
+let renderer;
+try{
+  renderer=new THREE.WebGLRenderer({canvas,antialias:false,powerPreference:"high-performance"});
+}catch(e){
+  document.getElementById("startBox").innerHTML="<h1>THE RAKE</h1><p>WebGL could not start in this browser.</p><p>Try Chrome hardware acceleration.</p>";
+  throw e;
+}
+renderer.setSize(innerWidth,innerHeight,false);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.25));
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x020604);
+scene.fog=new THREE.Fog(0x020604,35,190);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,300);
+
+const hemi=new THREE.HemisphereLight(0x9db9aa,0x10150d,1.35);
+scene.add(hemi);
+const moon=new THREE.DirectionalLight(0xb8d0ff,1.1);
+moon.position.set(-40,70,25);
+scene.add(moon);
+
+const mat={
+ ground:new THREE.MeshStandardMaterial({color:0x142019,roughness:1}),
+ trunk:new THREE.MeshStandardMaterial({color:0x3a2b1d,roughness:1}),
+ pine:new THREE.MeshStandardMaterial({color:0x18231b,roughness:1}),
+ rake:new THREE.MeshStandardMaterial({color:0x777e79,roughness:.95}),
+ dark:new THREE.MeshStandardMaterial({color:0x171b19,roughness:1}),
+ mouth:new THREE.MeshBasicMaterial({color:0x090103}),
+ tooth:new THREE.MeshStandardMaterial({color:0xd7d0b8}),
+ claw:new THREE.MeshStandardMaterial({color:0xb9b4a4}),
+ eye:new THREE.MeshBasicMaterial({color:0xff1820}),
+ survivor:new THREE.MeshStandardMaterial({color:0x496b59})
+};
+
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(440,440),mat.ground);
+floor.rotation.x=-Math.PI/2;scene.add(floor);
+
+const obstacles=[];
+function addObstacle(x,z,w,d){
+  obstacles.push({x,z,w,d});
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,1.4,d),mat.pine);
+  m.position.set(x,.7,z);scene.add(m);
+}
+for(let i=0;i<24;i++){
+  const x=(Math.random()-.5)*380,z=(Math.random()-.5)*380;
+  if(Math.hypot(x,z)>30)addObstacle(x,z,2+Math.random()*3,2+Math.random()*3);
+}
+
+const treeTrunk=new THREE.CylinderGeometry(.8,1.25,14,6);
+const treeTop=new THREE.ConeGeometry(5.2,9,7);
+for(let i=0;i<75;i++){
+  let x=(Math.random()-.5)*390,z=(Math.random()-.5)*390;
+  if(Math.hypot(x,z)<38){i--;continue}
+  const h=10+Math.random()*13;
+  const t=new THREE.Mesh(treeTrunk,mat.trunk);t.scale.y=h/14;t.position.set(x,h/2,z);scene.add(t);
+  const a=new THREE.Mesh(treeTop,mat.pine);a.position.set(x,h-2.5,z);a.scale.set(1,1.05,1);scene.add(a);
+  const b=new THREE.Mesh(treeTop,mat.pine);b.position.set(x,h-7,z);b.scale.set(.78,.85,.78);scene.add(b);
+}
+
+function partSphere(parent,pos,scale,material){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),material);
+  m.position.set(...pos);m.scale.set(...scale);parent.add(m);return m;
+}
+function makeRake(){
+  const root=new THREE.Group();root.position.set(35,0,-80);
+  const u={anim:"walk",phase:0,attack:0,stun:0,hp:15000,head:null,jaw:null,arms:[],legs:[]};
+  partSphere(root,[0,2.3,0],[.7,.6,.65],mat.dark);
+  partSphere(root,[0,3.5,0],[.82,1.45,.65],mat.rake);
+  partSphere(root,[0,4.35,0],[.9,.72,.68],mat.rake);
+  const neck=partSphere(root,[0,4.95,0],[.3,.55,.32],mat.dark);
+  const head=new THREE.Group();head.position.set(0,5.7,-.1);root.add(head);u.head=head;
+  partSphere(head,[0,0,0],[.92,1.05,.85],mat.rake);
+  partSphere(head,[0,.2,-.68],[.65,.12,.15],mat.dark);
+  for(const s of[-1,1])partSphere(head,[s*.3,.08,-.75],[.11,.11,.06],mat.eye);
+  for(let i=0;i<7;i++){const t=new THREE.Mesh(new THREE.ConeGeometry(.075,.34,6),mat.tooth);t.rotation.x=Math.PI;t.position.set(-.39+i*.13,-.34,-.68);head.add(t)}
+  const jaw=new THREE.Group();jaw.position.set(0,-.48,-.5);head.add(jaw);u.jaw=jaw;
+  partSphere(jaw,[0,0,0],[.7,.4,.57],mat.rake);
+  for(let i=0;i<7;i++){const t=new THREE.Mesh(new THREE.ConeGeometry(.075,.34,6),mat.tooth);t.position.set(-.39+i*.13,.2,-.64);jaw.add(t)}
+  for(const s of[-1,1]){
+    const upper=partSphere(root,[s*.88,4.05,0],[.32,1.65,.34],mat.dark);
+    const fore=partSphere(root,[s*1.02,2.55,0],[.25,1.45,.28],mat.rake);
+    partSphere(root,[s*1.03,1.15,0],[.28,.34,.32],mat.dark);
+    for(let k=-1;k<=1;k++){const c=new THREE.Mesh(new THREE.ConeGeometry(.075,.8,6),mat.claw);c.rotation.x=-Math.PI/2;c.position.set(s*1.03+k*.14,.95,-.4);root.add(c)}
+    u.arms.push({upper,fore});
+    const thigh=partSphere(root,[s*.43,2.05,.05],[.35,1.15,.38],mat.dark);
+    const shin=partSphere(root,[s*.48,.75,0],[.26,1.15,.28],mat.rake);
+    partSphere(root,[s*.48,-.25,-.2],[.3,.22,.62],mat.dark);
+    u.legs.push({thigh,shin});
+  }
+  root.userData=u;return root;
+}
+const rake=makeRake();scene.add(rake);
+
+const player={pos:new THREE.Vector3(0,1.7,12),yaw:0,pitch:0,hp:100,dead:false};
+const survivors=[];
+for(let i=0;i<5;i++){
+  const g=new THREE.Group();const b=new THREE.Mesh(new THREE.CapsuleGeometry(.4,.85,4,7),mat.survivor);b.position.y=1;
+  const h=new THREE.Mesh(new THREE.SphereGeometry(.32,8,6),mat.rake);h.position.y=1.8;g.add(b,h);
+  g.position.set((i-2)*5,0,5+Math.sin(i)*4);scene.add(g);survivors.push({mesh:g,hp:100,dead:false,name:"Survivor "+(i+1)});
+}
+camera.position.copy(player.pos);
+
+const keys={};let started=false,last=performance.now(),clock=1170,target=null,stunCD=0;
+addEventListener("keydown",e=>{
+  keys[e.code]=true;
+  if(e.code==="Space"){e.preventDefault();stunstick()}
+  if(e.code==="KeyR"&&player.dead)respawn();
+});
+addEventListener("keyup",e=>keys[e.code]=false);
+document.getElementById("begin").addEventListener("click",()=>{
+  started=true;document.getElementById("start").style.display="none";
+  canvas.requestPointerLock?.();
+});
+addEventListener("mousemove",e=>{
+  if(document.pointerLockElement!==canvas)return;
+  player.yaw-=e.movementX*.0023;
+  player.pitch=Math.max(-1.3,Math.min(1.3,player.pitch-e.movementY*.0023));
+});
+addEventListener("click",()=>{if(started&&document.pointerLockElement!==canvas)canvas.requestPointerLock?.()});
+
+function blocked(p){
+  if(Math.abs(p.x)>215||Math.abs(p.z)>215)return true;
+  for(const s of obstacles)if(Math.abs(p.x-s.x)<s.w/2+.45&&Math.abs(p.z-s.z)<s.d/2+.45)return true;
+  return false;
+}
+function distance(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
+function forward(){return new THREE.Vector3(Math.sin(player.yaw),0,-Math.cos(player.yaw))}
+function showBanner(t){const b=document.getElementById("banner");b.textContent=t;b.classList.add("show");clearTimeout(b.timer);b.timer=setTimeout(()=>b.classList.remove("show"),1200)}
+function chooseTarget(){
+  const list=[{name:"YOU",pos:player.pos,obj:player},...survivors.filter(s=>!s.dead).map(s=>({name:s.name,pos:s.mesh.position,obj:s}))];
+  list.sort((a,b)=>distance(rake.position,a.pos)-distance(rake.position,b.pos));return list[0]||null;
+}
+function damage(t,n){
+  if(t.obj===player){player.hp=Math.max(0,player.hp-n);if(player.hp<=0){player.dead=true;showBanner("THE RAKE GOT YOU — PRESS R")}}
+  else{t.obj.hp-=n;if(t.obj.hp<=0){t.obj.dead=true;t.obj.mesh.visible=false;showBanner(t.name+" was killed")}}
+}
+function stunstick(){
+  if(!started||player.dead||stunCD>0)return;
+  stunCD=.65;const d=distance(rake.position,player.pos);if(d>4.5)return;
+  const to=rake.position.clone().sub(player.pos).normalize();
+  if(forward().dot(to)<.55)return;
+  rake.userData.stun=.65;rake.userData.anim="stun";
+  const rf=new THREE.Vector3(Math.sin(rake.rotation.y),0,Math.cos(rake.rotation.y));
+  const pt=player.pos.clone().sub(rake.position).normalize();
+  if(rf.dot(pt)>.55)showBanner("PARRIED");
+  else{rake.userData.hp=Math.max(0,rake.userData.hp-45);showBanner("45 DAMAGE")}
+}
+function respawn(){player.dead=false;player.hp=100;player.pos.set(0,1.7,12);rake.position.set(35,0,-80);rake.userData.hp=15000;showBanner("YOU RESPAWNED")}
+function updateAI(dt,night){
+  const u=rake.userData;u.stun=Math.max(0,u.stun-dt);
+  if(u.stun){u.anim="stun";return}
+  target=chooseTarget();if(!target)return;
+  const d=distance(rake.position,target.pos);
+  if(!night){u.anim="idle";const dx=35-rake.position.x,dz=-80-rake.position.z;rake.position.x+=dx*dt*1.2;rake.position.z+=dz*dt*1.2;return}
+  if(d<3.2){u.anim="attack";u.attack+=dt;if(u.attack>.42&&u.attack<.48){damage(target,25);u.jaw.rotation.x=-.6}if(u.attack>1)u.attack=0}
+  else{
+    u.attack=0;u.anim=d<45?"chase":"walk";
+    const sp=d<45?19:7,dx=target.pos.x-rake.position.x,dz=target.pos.z-rake.position.z,l=Math.hypot(dx,dz)||1;
+    rake.position.x+=dx/l*sp*dt;rake.position.z+=dz/l*sp*dt;rake.rotation.y=Math.atan2(dx,dz);u.phase+=dt*sp*.9;
+  }
+}
+function animateRake(){
+  const u=rake.userData,s=Math.sin(u.phase),mult=u.anim==="chase"?1.25:1;
+  if(u.anim==="walk"||u.anim==="chase"){
+    u.legs[0].thigh.rotation.z=-.25*s*mult;u.legs[1].thigh.rotation.z=.25*s*mult;
+    u.legs[0].shin.rotation.z=.12*s*mult;u.legs[1].shin.rotation.z=-.12*s*mult;
+    u.arms[0].upper.rotation.z=-.2*s*mult;u.arms[1].upper.rotation.z=.2*s*mult;
+    u.arms[0].fore.rotation.z=-.18*s*mult;u.arms[1].fore.rotation.z=.18*s*mult;
+    u.head.rotation.y=Math.sin(u.phase*.55)*.1;u.jaw.rotation.x=.05;
+  }else if(u.anim==="attack"){
+    const p=Math.min(1,u.attack/.55);u.arms[0].upper.rotation.z=-.9+Math.sin(p*Math.PI)*.2;u.arms[1].upper.rotation.z=.9-Math.sin(p*Math.PI)*.2;
+    u.arms[0].fore.rotation.z=-.5;u.arms[1].fore.rotation.z=.5;u.jaw.rotation.x=Math.min(.7,Math.sin(u.attack*8)*.7);
+  }else if(u.anim==="stun"){
+    u.arms[0].upper.rotation.z=.65;u.arms[1].upper.rotation.z=-.65;u.head.rotation.z=.18;
+  }else{
+    u.arms[0].upper.rotation.z=-.08;u.arms[1].upper.rotation.z=.08;u.jaw.rotation.x=.04+Math.sin(performance.now()*.003)*.02;
+  }
+}
+function update(dt){
+  clock+=dt*1.57;if(clock>=1440)clock-=1440;
+  const hour=Math.floor(clock/60)%24,min=Math.floor(clock%60),night=clock>=1140||clock<360;
+  document.getElementById("time").textContent=((hour%12)||12)+":"+String(min).padStart(2,"0")+" "+(hour<12?"AM":"PM");
+  document.getElementById("phase").textContent=night?"NIGHT":"DAY";
+  if(!started)return;
+  stunCD=Math.max(0,stunCD-dt);
+  if(!player.dead){
+    const f=forward(),r=new THREE.Vector3(Math.cos(player.yaw),0,Math.sin(player.yaw)),v=new THREE.Vector3();
+    if(keys.KeyW||keys.ArrowUp)v.add(f);if(keys.KeyS||keys.ArrowDown)v.sub(f);if(keys.KeyD||keys.ArrowRight)v.add(r);if(keys.KeyA||keys.ArrowLeft)v.sub(r);
+    if(v.lengthSq()){v.normalize().multiplyScalar((keys.ShiftLeft||keys.ShiftRight)?9:5.5);const n=player.pos.clone().add(v.multiplyScalar(dt));if(!blocked(n))player.pos.copy(n)}
+    camera.position.copy(player.pos);
+    camera.lookAt(player.pos.clone().add(new THREE.Vector3(Math.sin(player.yaw)*Math.cos(player.pitch),Math.sin(player.pitch),-Math.cos(player.yaw)*Math.cos(player.pitch))));
+  }
+  updateAI(dt,night);animateRake();
+  document.getElementById("state").textContent=rake.userData.anim.toUpperCase();
+  document.getElementById("target").textContent=target?.name||"—";
+  document.getElementById("distance").textContent=target?distance(rake.position,target.pos).toFixed(1)+" studs":"—";
+  document.getElementById("hp").textContent=Math.round(player.hp);document.getElementById("pf").style.width=player.hp+"%";
+  document.getElementById("rhp").textContent=Math.round(rake.userData.hp);document.getElementById("rf").style.width=(rake.userData.hp/150)+"%";
+  document.getElementById("survivors").textContent=survivors.filter(s=>!s.dead).length;
+}
+function loop(t){const dt=Math.min(.05,(t-last)/1000);last=t;update(dt);renderer.render(scene,camera);requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight,false)});
+</script>
+</body>
+</html>
