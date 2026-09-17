@@ -1,14 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-/**
- * RakeAnimationController
- *
- * Loads a skinned GLB when one is supplied and drives its animation clips from
- * the existing AI state: idle, walk, chase, attack, and parry/stun.
- * If a clip is missing, the controller simply keeps the previous clip instead
- * of throwing, making it safe to add animations one at a time.
- */
 export class RakeAnimationController {
   constructor(scene, options = {}) {
     this.scene = scene;
@@ -40,16 +32,16 @@ export class RakeAnimationController {
       this.setState('idle', true);
       return this.root;
     } catch (error) {
-      console.warn('[Rake] No skinned GLB loaded yet. Using procedural fallback.', error);
+      console.warn('[Rake] GLB load failed; using procedural fallback.', error);
       return null;
     }
   }
 
   findAction(state) {
     const aliases = {
-      idle: ['idle', 'breathing', 'stand', 'standing'],
+      idle: ['idle', 'breathing', 'stand', 'standing', 'walk', 'walking'],
       walk: ['walk', 'walking'],
-      chase: ['chase', 'run', 'running', 'sprint'],
+      chase: ['chase', 'run', 'running', 'sprint', 'walk', 'walking'],
       attack: ['attack', 'attacking', 'slash', 'claw'],
       parry: ['parry', 'parried', 'stun', 'stunned', 'hit']
     };
@@ -65,18 +57,17 @@ export class RakeAnimationController {
     if (state === 'stun') state = 'parry';
     if (this.current === state && !immediate) return;
 
-    const next = this.findAction(state) || this.findAction('idle');
+    const next = this.findAction(state);
     if (!next) return;
 
     if (this.current) {
-      const previous = this.findAction(this.current) || this.findAction('idle');
+      const previous = this.findAction(this.current);
       if (previous && previous !== next) previous.fadeOut(immediate ? 0 : 0.12);
     }
 
     next.reset().fadeIn(immediate ? 0 : 0.12).play();
     this.current = state;
 
-    // Attack/parry clips should play once; locomotion loops.
     if (state === 'attack' || state === 'parry') {
       next.setLoop(THREE.LoopOnce, 1);
       next.clampWhenFinished = true;
@@ -89,10 +80,8 @@ export class RakeAnimationController {
   update(dt, state, movementSpeed = 0) {
     if (!this.ready || !this.mixer) return;
     this.setState(state);
-
     const action = this.findAction(this.current);
     if (action && (this.current === 'walk' || this.current === 'chase')) {
-      // Small speed adjustment keeps foot movement synchronized with AI speed.
       const base = this.current === 'chase' ? 19 : 7;
       action.timeScale = THREE.MathUtils.clamp(movementSpeed / base, 0.75, 1.35);
     }
@@ -101,6 +90,10 @@ export class RakeAnimationController {
 
   attachToAI(root) {
     if (!this.ready || !this.root) return false;
+    // The imported GLB replaces the old procedural Rake visuals.
+    root.traverse((o) => {
+      if (o.isMesh) o.visible = false;
+    });
     root.add(this.root);
     return true;
   }
