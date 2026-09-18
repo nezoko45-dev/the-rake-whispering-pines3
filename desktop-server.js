@@ -70,6 +70,14 @@ function openChrome(url) {
 }
 
 server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    try {
+      server.close(() => startServer(0));
+    } catch (_) {
+      process.exitCode = 1;
+    }
+    return;
+  }
   console.error("The Rake server failed:", err.message);
   process.exitCode = 1;
 });
@@ -83,18 +91,4 @@ function startServer(port) {
   });
 }
 
-try {
-  startServer(REQUESTED_PORT);
-} catch (_) {
-  startServer(0);
-}
-
-server.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    try {
-      server.close(() => startServer(0));
-    } catch (_) {
-      process.exitCode = 1;
-    }
-  }
-});
+startServer(REQUESTED_PORT);
