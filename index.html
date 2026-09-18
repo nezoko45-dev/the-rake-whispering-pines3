@@ -103,6 +103,7 @@ function updateRakePath(now){
  if(now<rakePathTimer)return;
  rakePath=findPath(rakeAI.x,rakeAI.z,player.x,player.z);
  rakePathIndex=Math.min(1,Math.max(0,rakePath.length-1));
+ if(rakePath.length===0) rakePath=[{x:player.x,z:player.z}];
  rakePathTimer=now+250;
 }
 function moveRakeAlongPath(dt){
@@ -118,14 +119,17 @@ function loadRake(){
  const url='https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb';
  new THREE.GLTFLoader().load(url,g=>{
   rake=g.scene;
+  rakeAI.x=0;rakeAI.y=0;rakeAI.z=-18;rakeAI.yaw=0;
   // Keep the Three.js object origin at the AI/root position.
   // Only scale the model around its existing root; do not center it by its mesh bounds.
   const box=new THREE.Box3().setFromObject(rake),size=box.getSize(new THREE.Vector3());
   rake.scale.setScalar(6/Math.max(size.y,.001));
+  rake.updateMatrixWorld(true);
   const grounded=new THREE.Box3().setFromObject(rake);
-  // Lock the visual model to the ground plane. The AI root itself stays at y=0.
+  // Keep the model's feet exactly on the ground while its AI root remains at ground level.
   rake.userData.groundOffset=-grounded.min.y;
   rake.position.set(rakeAI.x,rake.userData.groundOffset,rakeAI.z);
+  rake.updateMatrixWorld(true);
   // The GLB's forward direction is -Z; face that direction at spawn.
   rake.rotation.y=0;
   scene.add(rake);
@@ -158,9 +162,24 @@ let last=performance.now();
 function loop(now){
  requestAnimationFrame(loop);
  const dt=Math.min((now-last)/1000,.05);last=now;
- let x=0,z=0;if(keys.KeyW)z--;if(keys.KeyS)z++;if(keys.KeyA)x--;if(keys.KeyD)x++;
- const len=Math.hypot(x,z)||1;player.charge=!!(keys.ShiftLeft||keys.ShiftRight);
- const ps=player.charge?10:6;player.x+=x/len*ps*dt;player.z+=z/len*ps*dt;
+ let mx=0,mz=0;
+ if(keys.KeyW)mz-=1;
+ if(keys.KeyS)mz+=1;
+ if(keys.KeyA)mx-=1;
+ if(keys.KeyD)mx+=1;
+ const moveLen=Math.hypot(mx,mz)||1;
+ if(mx||mz){
+  mx/=moveLen;mz/=moveLen;
+  // Move relative to where the player is facing.
+  const forwardX=Math.sin(player.yaw),forwardZ=-Math.cos(player.yaw);
+  const rightX=Math.cos(player.yaw),rightZ=Math.sin(player.yaw);
+  const worldX=rightX*mx+forwardX*(-mz);
+  const worldZ=rightZ*mx+forwardZ*(-mz);
+  const ps=player.charge?10:6;
+  player.x+=worldX*ps*dt;
+  player.z+=worldZ*ps*dt;
+ }
+ player.charge=!!(keys.ShiftLeft||keys.ShiftRight);
  if(now>=rakeAI.stunUntil){
   const dx=player.x-rakeAI.x,dz=player.z-rakeAI.z,d=Math.hypot(dx,dz)||1;
   if(d<=8){rakeAI.state='attack';if(now>=rakeAI.nextAttack){rakeAI.nextAttack=now+650;player.hp=Math.max(0,player.hp-20);$('flash').style.opacity=.4;setTimeout(()=>$('flash').style.opacity=0,100);}}
