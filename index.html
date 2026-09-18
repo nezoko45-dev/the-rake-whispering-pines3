@@ -47,10 +47,9 @@ const $=id=>document.getElementById(id);
 const canvas=$("game");
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:"high-performance"});
 renderer.setSize(innerWidth,innerHeight,false);
-renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.15));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
-renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled=false;
 
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x020604);
@@ -59,29 +58,29 @@ const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,300);
 
 scene.add(new THREE.HemisphereLight(0x9db9aa,0x10150d,1.15));
 const moon=new THREE.DirectionalLight(0xb8d0ff,1.35);
-moon.position.set(-45,70,25);moon.castShadow=true;moon.shadow.mapSize.set(1024,1024);scene.add(moon);
+moon.position.set(-45,70,25);scene.add(moon);
 
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(440,440),new THREE.MeshStandardMaterial({color:0x142019,roughness:1}));
-ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+ground.rotation.x=-Math.PI/2;ground.receiveShadow=false;scene.add(ground);
 
 const obstacles=[];
 const trunkGeo=new THREE.CylinderGeometry(.75,1.2,14,6), pineGeo=new THREE.ConeGeometry(5,9,7);
 const trunkMat=new THREE.MeshStandardMaterial({color:0x3a2b1d,roughness:1});
 const pineMat=new THREE.MeshStandardMaterial({color:0x18231b,roughness:1});
-for(let i=0;i<70;i++){
+for(let i=0;i<42;i++){
   let x=(Math.random()-.5)*390,z=(Math.random()-.5)*390;
   if(Math.hypot(x,z)<38){i--;continue}
   const h=10+Math.random()*13;
-  const a=new THREE.Mesh(trunkGeo,trunkMat);a.scale.y=h/14;a.position.set(x,h/2,z);a.castShadow=true;scene.add(a);
-  const b=new THREE.Mesh(pineGeo,pineMat);b.position.set(x,h-2.5,z);b.scale.set(1,1.05,1);b.castShadow=true;scene.add(b);
-  const c=new THREE.Mesh(pineGeo,pineMat);c.position.set(x,h-7,z);c.scale.set(.78,.85,.78);c.castShadow=true;scene.add(c);
+  const a=new THREE.Mesh(trunkGeo,trunkMat);a.scale.y=h/14;a.position.set(x,h/2,z);scene.add(a);
+  const b=new THREE.Mesh(pineGeo,pineMat);b.position.set(x,h-2.5,z);b.scale.set(1,1.05,1);scene.add(b);
+  const c=new THREE.Mesh(pineGeo,pineMat);c.position.set(x,h-7,z);c.scale.set(.78,.85,.78);scene.add(c);
 }
 for(let i=0;i<22;i++){
   const x=(Math.random()-.5)*360,z=(Math.random()-.5)*360;
   if(Math.hypot(x,z)<35){i--;continue}
   const w=2+Math.random()*3,d=2+Math.random()*3;
   obstacles.push({x,z,w,d});
-  const m=new THREE.Mesh(new THREE.BoxGeometry(w,1.4,d),pineMat);m.position.set(x,.7,z);m.castShadow=true;scene.add(m);
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,1.4,d),pineMat);m.position.set(x,.7,z);scene.add(m);
 }
 
 const rake=new THREE.Group();
@@ -151,7 +150,7 @@ async function loadRake(){
     normalizeModel(rakeModel);
     rakeModel.traverse(o=>{
       if(!o.isMesh)return;
-      o.castShadow=false;o.receiveShadow=false;o.frustumCulled=true;
+      o.castShadow=false;o.receiveShadow=false;o.frustumCulled=false;
       if(Array.isArray(o.material))o.material=o.material.map(m=>m.clone());
       else if(o.material)o.material=o.material.clone();
       const mats=Array.isArray(o.material)?o.material:[o.material];
