@@ -3,62 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Rake - Rebuilt</title>
+<title>The Rake — Survival</title>
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070908;color:#fff;font-family:Arial,sans-serif}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050706;color:#fff;font-family:Arial,sans-serif}
 canvas{display:block}
 #hud{position:fixed;z-index:5;left:18px;top:16px;text-shadow:0 2px 5px #000;pointer-events:none}
-#title{font-size:25px;font-weight:900;letter-spacing:5px}
-.stat{margin-top:5px;font-size:14px}.help{margin-top:12px;font-size:12px;opacity:.78}
+#title{font-size:25px;font-weight:900;letter-spacing:5px}.stat{margin-top:5px;font-size:14px}
+#help{margin-top:12px;font-size:12px;opacity:.8}
 #cross{position:fixed;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);font-size:22px}
-#start{position:fixed;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;background:#050606}
-#startBox{text-align:center;padding:32px;max-width:540px}
-#start h1{font-size:44px;letter-spacing:8px;margin:0 0 8px}
-#start button{padding:14px 30px;border:0;border-radius:7px;font-weight:800;cursor:pointer}
+#start,#death{position:fixed;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(3,5,4,.97)}
+#death{display:none}
+.box{text-align:center;padding:32px;max-width:560px}.box h1{font-size:42px;letter-spacing:8px;margin:0 0 10px}
+button{padding:14px 30px;border:0;border-radius:7px;font-weight:800;cursor:pointer}
 #msg{margin-top:12px;font-size:13px;opacity:.8}
-#flash{position:fixed;z-index:4;inset:0;background:#900;opacity:0;pointer-events:none}
+#flash{position:fixed;z-index:4;inset:0;background:#a00;opacity:0;pointer-events:none}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
-<div id="start"><div id="startBox"><h1>THE RAKE</h1><p>Rebuilt Three.js AI game</p><button id="startBtn">START GAME</button><div id="msg">Preparing...</div></div></div>
-<div id="hud"><div id="title">THE RAKE</div><div class="stat" id="status">Ready</div><div class="stat" id="hp">HP: 100</div><div class="stat" id="state">Rake: stalking</div><div class="help">WASD move · Mouse look · Shift charge · Left click stunstick</div></div>
+<div id="start"><div class="box"><h1>THE RAKE</h1><p>Survive the Rake.</p><button id="startBtn">START GAME</button><div id="msg">Loading Three.js...</div></div></div>
+<div id="death"><div class="box"><h1>YOU DIED</h1><p>The Rake got you.</p><button id="respawnBtn">RESPAWN</button></div></div>
+<div id="hud"><div id="title">THE RAKE</div><div class="stat" id="status">Ready</div><div class="stat" id="hp">HP: 100</div><div class="stat" id="state">Rake: stalking</div><div id="help">WASD move · Mouse look · Shift charge · Left click stunstick</div></div>
 <div id="cross">+</div><div id="flash"></div>
 <script>
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const status=$('status'),msg=$('msg'),start=$('start'),btn=$('startBtn');
+const start=$('start'),death=$('death'),msg=$('msg'),status=$('status');
 if(!window.THREE||!THREE.GLTFLoader){msg.textContent='Three.js failed to load.';return;}
 
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x070908);
-scene.fog=new THREE.Fog(0x070908,45,190);
+scene.background=new THREE.Color(0x050706);
+scene.fog=new THREE.Fog(0x050706,42,190);
 const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.05,500);
 camera.rotation.order='YXZ';
-
 const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
 renderer.setSize(innerWidth,innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.outputEncoding=THREE.sRGBEncoding;
 document.body.insertBefore(renderer.domElement,start);
+scene.add(new THREE.HemisphereLight(0xb9c7d8,0x15110c,1.55));
+const sun=new THREE.DirectionalLight(0xd7deff,1.35);sun.position.set(30,70,20);scene.add(sun);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,300),new THREE.MeshLambertMaterial({color:0x172019}));
+ground.rotation.x=-Math.PI/2;scene.add(ground);
+const grid=new THREE.GridHelper(300,60,0x304030,0x1c281d);grid.position.y=.01;scene.add(grid);
 
-scene.add(new THREE.HemisphereLight(0xb9c7d8,0x15110c,1.5));
-const sun=new THREE.DirectionalLight(0xd7deff,1.4);
-sun.position.set(30,70,20);scene.add(sun);
-
-const ground=new THREE.Mesh(
- new THREE.PlaneGeometry(300,300),
- new THREE.MeshLambertMaterial({color:0x172019})
-);
-ground.rotation.x=-Math.PI/2;
-scene.add(ground);
-
-const grid=new THREE.GridHelper(300,60,0x304030,0x1c281d);
-grid.position.y=.01;scene.add(grid);
-
-for(let i=0;i<34;i++){
+for(let i=0;i<36;i++){
  const tree=new THREE.Group();
  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.38,6,7),new THREE.MeshLambertMaterial({color:0x2a1c13}));
  const crown=new THREE.Mesh(new THREE.ConeGeometry(2.5,6,8),new THREE.MeshLambertMaterial({color:0x122016}));
@@ -67,13 +58,13 @@ for(let i=0;i<34;i++){
  scene.add(tree);
 }
 
-const player={x:0,y:1.7,z:22,yaw:0,pitch:0,hp:100,charge:false};
+const spawn={x:0,y:1.7,z:22};
+const player={x:spawn.x,y:spawn.y,z:spawn.z,yaw:0,pitch:0,hp:100,charge:false,alive:false};
 const ai={x:0,y:0,z:0,yaw:0,state:'stalking',stunUntil:0,nextAttack:0};
+let rakeRoot=null,rakeVisual=null,mixer=null,actions={},active=null;
+let path=[],pathIndex=0,nextPath=0;
 
-let rakeRoot=null,rakeVisual=null,mixer=null,actions={},activeAction=null;
-let rakeHeight=6;
-
-function chooseAnimations(clips){
+function mapAnimations(clips){
  const out={};
  for(const clip of clips||[]){
   const n=clip.name.toLowerCase().replace(/[ _-]+/g,'');
@@ -86,281 +77,125 @@ function chooseAnimations(clips){
  return out;
 }
 function play(name){
- const a=actions[name];
- if(!a||activeAction===a)return;
- if(activeAction)activeAction.fadeOut(.12);
- a.reset().fadeIn(.12).play();
- activeAction=a;
+ const a=actions[name];if(!a||active===a)return;
+ if(active)active.fadeOut(.1);
+ a.reset().fadeIn(.1).play();active=a;
 }
 
-// Clean A* on a flat ground grid. Trees are treated as blocked cells.
-const CELL=3, RANGE=48;
-const obstacles=[];
-function buildObstacleMap(){
- obstacles.length=0;
- scene.traverse(o=>{
-  if(o.userData&&o.userData.rakeObstacle)obstacles.push(o);
- });
-}
-function blocked(gx,gz){
- const wx=gx*CELL,wz=gz*CELL;
- for(const o of obstacles){
-  const dx=wx-o.position.x,dz=wz-o.position.z;
-  if(dx*dx+dz*dz<10)return true;
- }
- return false;
-}
 function astar(sx,sz,gx,gz){
- const sxg=Math.round(sx/CELL),szg=Math.round(sz/CELL);
- const gxg=Math.round(gx/CELL),gzg=Math.round(gz/CELL);
- const minX=sxg-Math.ceil(RANGE/CELL),maxX=sxg+Math.ceil(RANGE/CELL);
- const minZ=szg-Math.ceil(RANGE/CELL),maxZ=szg+Math.ceil(RANGE/CELL);
- const key=(x,z)=>x+','+z;
- const h=(x,z)=>Math.abs(x-gxg)+Math.abs(z-gzg);
- const open=[{x:sxg,z:szg,g:0,f:h(sxg,szg)}],came=new Map(),score=new Map([[key(sxg,szg),0]]);
- const closed=new Set();
+ const cell=3, radius=48;
+ const ax=Math.round(sx/cell),az=Math.round(sz/cell),bx=Math.round(gx/cell),bz=Math.round(gz/cell);
+ const minX=ax-Math.ceil(radius/cell),maxX=ax+Math.ceil(radius/cell),minZ=az-Math.ceil(radius/cell),maxZ=az+Math.ceil(radius/cell);
+ const key=(x,z)=>x+','+z,h=(x,z)=>Math.abs(x-bx)+Math.abs(z-bz);
+ const open=[{x:ax,z:az,g:0,f:h(ax,az)}],came=new Map(),score=new Map([[key(ax,az),0]]),closed=new Set();
  while(open.length){
-  open.sort((a,b)=>a.f-b.f);
-  const cur=open.shift(),ck=key(cur.x,cur.z);
-  if(closed.has(ck))continue;
-  closed.add(ck);
-  if(cur.x===gxg&&cur.z===gzg){
-   const path=[];let k=ck;
-   while(k){const [x,z]=k.split(',').map(Number);path.push({x:x*CELL,z:z*CELL});k=came.get(k);}
-   return path.reverse();
-  }
-  for(let ox=-1;ox<=1;ox++)for(let oz=-1;oz<=1;oz++){
-   if(!ox&&!oz)continue;
-   const nx=cur.x+ox,nz=cur.z+oz;
-   if(nx<minX||nx>maxX||nz<minZ||nz>maxZ)continue;
-   if(blocked(nx,nz))continue;
-   const nk=key(nx,nz),ng=cur.g+((ox&&oz)?1.414:1);
-   if(ng<(score.get(nk)??Infinity)){
-    score.set(nk,ng);came.set(nk,ck);
-    open.push({x:nx,z:nz,g:ng,f:ng+h(nx,nz)});
-   }
+  open.sort((a,b)=>a.f-b.f);const c=open.shift(),ck=key(c.x,c.z);if(closed.has(ck))continue;closed.add(ck);
+  if(c.x===bx&&c.z===bz){const out=[];let k=ck;while(k){const [x,z]=k.split(',').map(Number);out.push({x:x*cell,z:z*cell});k=came.get(k)}return out.reverse()}
+  for(let ox=-1;ox<=1;ox++)for(let oz=-1;oz<=1;oz++){if(!ox&&!oz)continue;const nx=c.x+ox,nz=c.z+oz;if(nx<minX||nx>maxX||nz<minZ||nz>maxZ)continue;
+   const nk=key(nx,nz),ng=c.g+((ox&&oz)?1.414:1);if(ng<(score.get(nk)??Infinity)){score.set(nk,ng);came.set(nk,ck);open.push({x:nx,z:nz,g:ng,f:ng+h(nx,nz)})}
   }
  }
  return [{x:gx,z:gz}];
 }
-let path=[],pathIndex=0,nextPath=0;
 function updatePath(now){
  if(now<nextPath)return;
- path=astar(ai.x,ai.z,player.x,player.z);
- pathIndex=Math.min(1,Math.max(0,path.length-1));
- nextPath=now+220;
+ path=astar(ai.x,ai.z,player.x,player.z);pathIndex=Math.min(1,Math.max(0,path.length-1));nextPath=now+250;
 }
-function moveAI(dt){
- if(!path.length)return;
+function moveRake(dt){
  const p=path[pathIndex]||{x:player.x,z:player.z};
- let dx=p.x-ai.x,dz=p.z-ai.z,d=Math.hypot(dx,dz);
- if(d<1.25){
-  if(pathIndex<path.length-1)pathIndex++;
-  return;
- }
- const dist=Math.hypot(player.x-ai.x,player.z-ai.z);
- const speed=dist<=45?19:7;
- ai.x+=dx/d*speed*dt;
- ai.z+=dz/d*speed*dt;
- ai.y=0;
- ai.yaw=Math.atan2(dx,dz);
-}
-
-function addTreesAsObstacles(){
- scene.traverse(o=>{
-  if(o.isGroup && o.children.length===2 && o.position.y===0){
-   o.userData.rakeObstacle=true;
-  }
- });
- buildObstacleMap();
-}
-
-function normalizeRake(gltf){
- // The visual stays inside a dedicated world root.
- rakeRoot=new THREE.Group();
- rakeRoot.name='RakeAI_Root';
- rakeRoot.position.set(ai.x,0,ai.z);
- scene.add(rakeRoot);
-
- rakeVisual=gltf.scene;
- rakeVisual.name='RakeVisual';
- rakeVisual.rotation.set(0,0,0);
- rakeVisual.position.set(0,0,0);
- rakeVisual.scale.set(1,1,1);
- rakeVisual.traverse(o=>{
-  o.visible=true;
-  o.frustumCulled=false;
-  if(o.isMesh){
-   o.castShadow=false;o.receiveShadow=false;
-   if(o.material)o.material.side=THREE.DoubleSide;
-  }
- });
- rakeRoot.add(rakeVisual);
-
- // Update world matrices before measuring, as required for correct Box3 bounds.
- rakeRoot.updateWorldMatrix(true,true);
- let box=new THREE.Box3().setFromObject(rakeVisual,true);
- let size=box.getSize(new THREE.Vector3());
- rakeHeight=Math.max(size.y,.001);
- const targetHeight=6;
- const s=targetHeight/rakeHeight;
- rakeVisual.scale.setScalar(s);
- rakeRoot.updateWorldMatrix(true,true);
-
- // Center the rendered mesh over the AI root and put its feet at y=0.
- box.setFromObject(rakeVisual,true);
- const center=box.getCenter(new THREE.Vector3());
- const minY=box.min.y;
- rakeVisual.position.x-=center.x;
- rakeVisual.position.z-=center.z;
- rakeVisual.position.y-=minY;
- rakeRoot.updateWorldMatrix(true,true);
-
- // Face -Z by default. If the source asset is authored backwards, the root can turn it.
- rakeVisual.rotation.y=0;
-
- mixer=new THREE.AnimationMixer(rakeVisual);
- const map=chooseAnimations(gltf.animations);
- for(const k in map){
-  actions[k]=mixer.clipAction(map[k]);
-  actions[k].setLoop(THREE.LoopRepeat,Infinity);
- }
- if(actions.idle)play('idle');
- else if(actions.walk)play('walk');
- else{
-  const first=Object.keys(actions)[0];
-  if(first)play(first);
- }
- status.textContent='Rake AI ready';
- msg.textContent='Rake loaded';
- console.log('Rake normalized', {height:rakeHeight,animations:gltf.animations.map(a=>a.name)});
+ const dx=p.x-ai.x,dz=p.z-ai.z,d=Math.hypot(dx,dz);
+ if(d<1.2){if(pathIndex<path.length-1)pathIndex++;return}
+ const dist=Math.hypot(player.x-ai.x,player.z-ai.z),speed=dist<=45?19:7;
+ ai.x+=dx/d*speed*dt;ai.z+=dz/d*speed*dt;ai.y=0;ai.yaw=Math.atan2(dx,dz);
 }
 
 function loadRake(){
  status.textContent='Loading Rake...';
  const loader=new THREE.GLTFLoader();
- const urls=[
-  './assets/rake/rake.glb',
-  'https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/assets/rake/rake.glb',
-  'https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb'
- ];
- let i=0;
- function next(){
-  if(i>=urls.length){
-   status.textContent='Rake failed to load';
-   msg.textContent='Could not load the Rake model.';
-   return;
-  }
-  const url=urls[i++];
-  loader.load(url,g=>normalizeRake(g),p=>{
-   if(p.total)status.textContent='Loading Rake '+Math.round(p.loaded/p.total*100)+'%';
-  },()=>next());
+ const urls=['./assets/rake/rake.glb','https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/assets/rake/rake.glb','https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb'];
+ let n=0;
+ function tryNext(){
+  if(n>=urls.length){status.textContent='Rake failed to load';msg.textContent='The Rake model could not be loaded.';return}
+  loader.load(urls[n++],g=>{
+   if(rakeRoot)scene.remove(rakeRoot);
+   rakeRoot=new THREE.Group();rakeRoot.name='RakeAI_Root';scene.add(rakeRoot);
+   rakeVisual=g.scene;rakeVisual.name='RakeVisual';
+   rakeVisual.traverse(o=>{o.visible=true;o.frustumCulled=false;if(o.isMesh&&o.material)o.material.side=THREE.DoubleSide});
+   rakeRoot.add(rakeVisual);
+   rakeRoot.updateWorldMatrix(true,true);
+   let box=new THREE.Box3().setFromObject(rakeVisual,true),size=box.getSize(new THREE.Vector3());
+   rakeVisual.scale.setScalar(6/Math.max(size.y,.001));
+   rakeRoot.updateWorldMatrix(true,true);
+   box.setFromObject(rakeVisual,true);
+   const center=box.getCenter(new THREE.Vector3());
+   rakeVisual.position.x-=center.x;rakeVisual.position.z-=center.z;rakeVisual.position.y-=box.min.y;
+   rakeVisual.rotation.set(0,0,0);
+   rakeRoot.position.set(ai.x,0,ai.z);
+   mixer=new THREE.AnimationMixer(rakeVisual);
+   actions={};active=null;
+   const map=mapAnimations(g.animations);
+   for(const k in map)actions[k]=mixer.clipAction(map[k]);
+   play(actions.idle?'idle':actions.walk?'walk':Object.keys(actions)[0]);
+   status.textContent='Rake visible · AI active';msg.textContent='Rake loaded successfully.';
+  },undefined,()=>tryNext());
  }
- next();
+ tryNext();
 }
 
-const keys={};
-addEventListener('keydown',e=>{keys[e.code]=true;if(['KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code))e.preventDefault();});
-addEventListener('keyup',e=>keys[e.code]=false);
-
-renderer.domElement.addEventListener('click',()=>{
- if(start.style.display==='none')renderer.domElement.requestPointerLock();
-});
-addEventListener('mousemove',e=>{
- if(document.pointerLockElement!==renderer.domElement)return;
- player.yaw-=e.movementX*.0022;
- player.pitch=Math.max(-1.35,Math.min(1.35,player.pitch-e.movementY*.0022));
-});
-
-addEventListener('mousedown',e=>{
- if(e.button!==0)return;
- const dx=ai.x-player.x,dz=ai.z-player.z,d=Math.hypot(dx,dz);
- if(d>9)return;
- const face=(Math.sin(player.yaw)*dx-Math.cos(player.yaw)*dz)/(d||1);
- if(player.charge&&face>.82){
-  ai.state='parry';ai.stunUntil=performance.now()+350;
-  player.hp=Math.max(0,player.hp-10);
- }else{
-  ai.state='stunned';ai.stunUntil=performance.now()+2500;
- }
-});
-
-btn.onclick=()=>{
- start.style.display='none';
- player.yaw=0;player.pitch=0;
- // Spawn the Rake 12 units in front of the player, guaranteed inside the camera view.
- ai.x=0;ai.y=0;ai.z=8;ai.yaw=0;
- loadRake();
+function resetPlayer(){
+ player.x=spawn.x;player.y=spawn.y;player.z=spawn.z;player.yaw=0;player.pitch=0;player.hp=100;player.alive=true;
+ ai.x=0;ai.y=0;ai.z=0;ai.yaw=0;ai.state='stalking';ai.stunUntil=0;ai.nextAttack=0;
+ path=[];pathIndex=0;nextPath=0;
+ death.style.display='none';
  renderer.domElement.requestPointerLock();
-};
+}
+function killPlayer(){
+ if(!player.alive)return;
+ player.alive=false;player.hp=0;
+ $('hp').textContent='HP: 0';
+ death.style.display='flex';
+ if(document.pointerLockElement)document.exitPointerLock();
+}
+$('startBtn').onclick=()=>{start.style.display='none';resetPlayer();loadRake()};
+$('respawnBtn').onclick=()=>resetPlayer();
+
+const keys={};
+addEventListener('keydown',e=>{keys[e.code]=true;if(['KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code))e.preventDefault()});
+addEventListener('keyup',e=>keys[e.code]=false);
+renderer.domElement.addEventListener('click',()=>{if(player.alive)renderer.domElement.requestPointerLock()});
+addEventListener('mousemove',e=>{if(document.pointerLockElement!==renderer.domElement||!player.alive)return;player.yaw-=e.movementX*.0022;player.pitch=Math.max(-1.35,Math.min(1.35,player.pitch-e.movementY*.0022))});
+addEventListener('mousedown',e=>{
+ if(e.button!==0||!player.alive)return;
+ const dx=ai.x-player.x,dz=ai.z-player.z,d=Math.hypot(dx,dz);if(d>9)return;
+ const face=(Math.sin(player.yaw)*dx-Math.cos(player.yaw)*dz)/(d||1);
+ if(player.charge&&face>.82){ai.state='parry';ai.stunUntil=performance.now()+350;player.hp=Math.max(0,player.hp-10)}
+ else{ai.state='stunned';ai.stunUntil=performance.now()+2500}
+});
 
 let last=performance.now();
 function loop(now){
- requestAnimationFrame(loop);
- const dt=Math.min((now-last)/1000,.05);last=now;
-
- let mx=0,mz=0;
- if(keys.KeyW)mz+=1;
- if(keys.KeyS)mz-=1;
- if(keys.KeyA)mx-=1;
- if(keys.KeyD)mx+=1;
- const len=Math.hypot(mx,mz);
- if(len){
-  mx/=len;mz/=len;
-  const forwardX=Math.sin(player.yaw),forwardZ=-Math.cos(player.yaw);
-  const rightX=Math.cos(player.yaw),rightZ=Math.sin(player.yaw);
-  const worldX=forwardX*mz+rightX*mx;
-  const worldZ=forwardZ*mz+rightZ*mx;
-  const speed=keys.ShiftLeft||keys.ShiftRight?10:6;
-  player.x+=worldX*speed*dt;
-  player.z+=worldZ*speed*dt;
+ requestAnimationFrame(loop);const dt=Math.min((now-last)/1000,.05);last=now;
+ if(player.alive){
+  let mx=0,mz=0;if(keys.KeyW)mz+=1;if(keys.KeyS)mz-=1;if(keys.KeyA)mx-=1;if(keys.KeyD)mx+=1;
+  const len=Math.hypot(mx,mz);if(len){mx/=len;mz/=len;const fx=Math.sin(player.yaw),fz=-Math.cos(player.yaw),rx=Math.cos(player.yaw),rz=Math.sin(player.yaw);const wx=fx*mz+rx*mx,wz=fz*mz+rz*mx;const sp=player.charge?10:6;player.x+=wx*sp*dt;player.z+=wz*sp*dt}
+  player.charge=!!(keys.ShiftLeft||keys.ShiftRight);
+  if(now>=ai.stunUntil){
+   const dx=player.x-ai.x,dz=player.z-ai.z,dist=Math.hypot(dx,dz)||1;
+   if(dist<=8){ai.state='attack';if(now>=ai.nextAttack){ai.nextAttack=now+650;player.hp=Math.max(0,player.hp-20);$('flash').style.opacity=.45;setTimeout(()=>$('flash').style.opacity=0,100);if(player.hp<=0)killPlayer()}}
+   else{ai.state=dist<=45?'chase':'stalking';updatePath(now);moveRake(dt)}
+  }else if(ai.state!=='parry')ai.state='stunned';
+  if(rakeRoot){rakeRoot.position.set(ai.x,0,ai.z);rakeRoot.rotation.y=ai.yaw}
+  if(mixer)mixer.update(dt);
+  const wanted=ai.state==='attack'?'attack':ai.state==='parry'?'parry':ai.state==='chase'?(actions.chase?'chase':actions.walk?'walk':'idle'):(actions.walk?'walk':'idle');
+  if(actions[wanted])play(wanted);
+  camera.position.set(player.x,player.y,player.z);camera.rotation.y=player.yaw;camera.rotation.x=player.pitch;
  }
- player.charge=!!(keys.ShiftLeft||keys.ShiftRight);
-
- if(now>=ai.stunUntil){
-  const dx=player.x-ai.x,dz=player.z-ai.z,dist=Math.hypot(dx,dz)||1;
-  if(dist<=8){
-   ai.state='attack';
-   if(now>=ai.nextAttack){
-    ai.nextAttack=now+650;
-    player.hp=Math.max(0,player.hp-20);
-    $('flash').style.opacity=.4;
-    setTimeout(()=>$('flash').style.opacity=0,100);
-   }
-  }else{
-   ai.state=dist<=45?'chase':'stalking';
-   updatePath(now);
-   moveAI(dt);
-  }
- }else if(ai.state!=='parry')ai.state='stunned';
-
- if(rakeRoot){
-  rakeRoot.position.set(ai.x,0,ai.z);
-  rakeRoot.rotation.y=ai.yaw;
- }
- if(mixer)mixer.update(dt);
-
- const wanted=ai.state==='attack'?'attack':
-  ai.state==='parry'?'parry':
-  ai.state==='chase'?(actions.chase?'chase':actions.walk?'walk':'idle'):
-  (actions.walk?'walk':'idle');
- if(actions[wanted])play(wanted);
-
- camera.position.set(player.x,player.y,player.z);
- camera.rotation.y=player.yaw;
- camera.rotation.x=player.pitch;
-
- $('hp').textContent='HP: '+player.hp;
- $('state').textContent='Rake: '+ai.state;
+ $('hp').textContent='HP: '+player.hp;$('state').textContent='Rake: '+ai.state;
  renderer.render(scene,camera);
 }
 requestAnimationFrame(loop);
-
-addEventListener('resize',()=>{
- camera.aspect=innerWidth/innerHeight;
- camera.updateProjectionMatrix();
- renderer.setSize(innerWidth,innerHeight);
-});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+msg.textContent='Ready. Click START GAME.';
 })();
 </script>
 </body>
