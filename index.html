@@ -113,7 +113,8 @@ function moveRake(dt){
 
 function makeRakeMarker(){
  if(rakeMarker)scene.remove(rakeMarker);
- rakeMarker=new THREE.Group();rakeMarker.name='RakeVisibleDebug';
+ rakeMarker=new THREE.Group();
+ rakeMarker.name='RakeLoadingFallback';
  const body=new THREE.Mesh(new THREE.CylinderGeometry(1.35,1.35,4.2,16),new THREE.MeshBasicMaterial({color:0xff2020,depthTest:false}));
  body.position.y=2.25;
  const head=new THREE.Mesh(new THREE.SphereGeometry(1.35,16,12),new THREE.MeshBasicMaterial({color:0xff4040,depthTest:false}));
@@ -121,45 +122,114 @@ function makeRakeMarker(){
  rakeMarker.add(body,head);scene.add(rakeMarker);
 }
 function syncRakeVisual(){
- if(rakeRoot){rakeRoot.position.set(ai.x,0,ai.z);rakeRoot.rotation.y=ai.yaw;rakeRoot.visible=true;rakeRoot.updateMatrixWorld(true);}
- if(rakeMarker){rakeMarker.position.set(ai.x,0,ai.z);rakeMarker.rotation.y=ai.yaw;rakeMarker.visible=true;rakeMarker.updateMatrixWorld(true);}
+ if(rakeRoot){
+  rakeRoot.position.set(ai.x,0,ai.z);
+  rakeRoot.rotation.y=ai.yaw;
+  rakeRoot.visible=true;
+  rakeRoot.updateMatrixWorld(true);
+ }
+ if(rakeMarker){
+  rakeMarker.position.set(ai.x,0,ai.z);
+  rakeMarker.rotation.y=ai.yaw;
+  rakeMarker.updateMatrixWorld(true);
+ }
 }
 function loadRake(){
- status.textContent='Rake spawning...';
+ status.textContent='Loading your Rake GLB...';
  makeRakeMarker();
  syncRakeVisual();
  const loader=new THREE.GLTFLoader();
- if(rakeMarker){rakeMarker.visible=true;syncRakeVisual();}
- status.textContent='Rake AI ready';
- const urls=['./assets/rake/rake.glb','https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/assets/rake/rake.glb','https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb'];
+
+ // The packaged server keeps the user's actual GLB at this exact path.
+ const urls=[
+  './assets/rake/rake.glb',
+  'https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/assets/rake/rake.glb',
+  'https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb'
+ ];
  let n=0;
+
  function tryNext(){
-  if(n>=urls.length){status.textContent='Rake failed to load';msg.textContent='The Rake model could not be loaded.';return}
-  loader.load(urls[n++],g=>{
+  if(n>=urls.length){
+   status.textContent='Your Rake GLB failed to load';
+   msg.textContent='Could not load assets/rake/rake.glb.';
+   if(rakeMarker)rakeMarker.visible=true;
+   return;
+  }
+
+  const url=urls[n++];
+  loader.load(url,g=>{
+   // Remove the red fallback as soon as the REAL GLB is ready.
+   if(rakeMarker){
+    scene.remove(rakeMarker);
+    rakeMarker=null;
+   }
    if(rakeRoot)scene.remove(rakeRoot);
-   rakeRoot=new THREE.Group();rakeRoot.name='RakeAI_Root';scene.add(rakeRoot);
-   rakeVisual=g.scene;rakeVisual.name='RakeVisual';
-   rakeVisual.traverse(o=>{o.visible=true;o.frustumCulled=false;if(o.isMesh&&o.material)o.material.side=THREE.DoubleSide});
-   rakeRoot.add(rakeVisual);
-   rakeRoot.updateWorldMatrix(true,true);
-   let box=new THREE.Box3().setFromObject(rakeVisual,true),size=box.getSize(new THREE.Vector3());
-   rakeVisual.scale.setScalar(6/Math.max(size.y,.001));
-   rakeRoot.updateWorldMatrix(true,true);
-   box.setFromObject(rakeVisual,true);
+
+   // Clean hierarchy: AI root -> anchor/model container -> untouched imported GLB.
+   rakeRoot=new THREE.Group();
+   rakeRoot.name='RakeAI_Root';
+   const anchor=new THREE.Group();
+   anchor.name='RakeAnchor';
+   rakeVisual=g.scene;
+   rakeVisual.name='RakeGLB';
+   rakeRoot.add(anchor);
+   anchor.add(rakeVisual);
+   scene.add(rakeRoot);
+
+   // Keep the GLB hierarchy intact; only the outer anchor controls size/orientation.
+   rakeVisual.traverse(o=>{
+    o.visible=true;
+    o.frustumCulled=false;
+    if(o.isMesh){
+     o.renderOrder=10;
+     if(o.material){
+      o.material.side=THREE.DoubleSide;
+      o.material.depthWrite=true;
+      o.material.transparent=false;
+      o.material.needsUpdate=true;
+     }
+    }
+   });
+
+   // Measure the imported model before scaling, then fit it to a 6-unit height.
+   rakeRoot.updateMatrixWorld(true);
+   let box=new THREE.Box3().setFromObject(rakeVisual);
+   let size=box.getSize(new THREE.Vector3());
+   const height=Math.max(size.y,.001);
+   anchor.scale.setScalar(6/height);
+
+   // Recalculate after scaling and center X/Z while putting feet on ground.
+   rakeRoot.updateMatrixWorld(true);
+   box.setFromObject(rakeVisual);
    const center=box.getCenter(new THREE.Vector3());
-   rakeVisual.position.x-=center.x;rakeVisual.position.z-=center.z;rakeVisual.position.y-=box.min.y;
-   rakeVisual.rotation.set(0,Math.PI,0);
-   rakeVisual.visible=true;
-   rakeVisual.renderOrder=10;
-   rakeVisual.traverse(o=>{o.visible=true;o.frustumCulled=false;if(o.isMesh){o.renderOrder=10;o.material.depthWrite=true;o.material.transparent=false}});
+   const scaledSize=box.getSize(new THREE.Vector3());
+   rakeVisual.position.x-=center.x;
+   rakeVisual.position.z-=center.z;
+   rakeVisual.position.y-=box.min.y;
+
+   // The existing Rake asset faces backward in its source orientation.
+   anchor.rotation.y=Math.PI;
+
    rakeRoot.position.set(ai.x,0,ai.z);
+   rakeRoot.visible=true;
+   rakeRoot.updateMatrixWorld(true);
+
    mixer=new THREE.AnimationMixer(rakeVisual);
-   actions={};active=null;
+   actions={};
+   active=null;
    const map=mapAnimations(g.animations);
    for(const k in map)actions[k]=mixer.clipAction(map[k]);
-   play(actions.idle?'idle':actions.walk?'walk':Object.keys(actions)[0]);
-   syncRakeVisual();status.textContent='Rake visible · AI active';msg.textContent='Rake loaded successfully.';
-  },undefined,err=>{console.error('Rake GLB load failed',urls[n-1],err);tryNext();});
+   if(actions.idle)play('idle');
+   else if(actions.walk)play('walk');
+   else if(Object.keys(actions).length)play(Object.keys(actions)[0]);
+
+   syncRakeVisual();
+   status.textContent='Your Rake GLB loaded · AI active';
+   msg.textContent='Your actual Rake model is now in the game.';
+  },undefined,err=>{
+   console.error('Rake GLB load failed:',url,err);
+   tryNext();
+  });
  }
  tryNext();
 }
