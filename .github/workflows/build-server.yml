@@ -2,10 +2,10 @@ name: Build The Rake Server EXE
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - server.js
+      - build-server.js
       - package.json
       - index.html
       - game.js
@@ -18,31 +18,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Show Node version
-        run: node --version
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Verify server syntax
+      - name: Verify source syntax
         run: node --check server.js
+      - name: Create self-contained server
+        run: node build-server.js
+      - name: Verify bundled server syntax
+        run: node --check build/server.js
       - name: Build Windows EXE
-        run: npx --yes pkg@5.8.1 server.js --targets node18-win-x64 --output TheRakeServer.exe
-      - name: Verify EXE exists
+        run: npx --yes pkg@5.8.1 build/server.js --targets node18-win-x64 --output TheRakeServer.exe
+      - name: Verify EXE
         shell: pwsh
         run: |
           if (-not (Test-Path ".\TheRakeServer.exe")) { throw "TheRakeServer.exe was not created" }
           Get-Item ".\TheRakeServer.exe" | Format-List Name,Length
-      - name: Package complete game
+      - name: Package launcher
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "TheRakeWindows" | Out-Null
           Copy-Item "TheRakeServer.exe" "TheRakeWindows\TheRakeServer.exe"
-          Copy-Item "index.html" "TheRakeWindows\index.html"
-          Copy-Item "game.js" "TheRakeWindows\game.js"
-          Copy-Item "styles.css" "TheRakeWindows\styles.css"
-          New-Item -ItemType Directory -Force -Path "TheRakeWindows\assets\rake" | Out-Null
-          Copy-Item "assets\rake\rake.glb" "TheRakeWindows\assets\rake\rake.glb"
-      - name: Upload complete Windows package
+          Set-Content -Path "TheRakeWindows\README.txt" -Value "Run TheRakeServer.exe. It contains the browser game and Rake model and will open Chrome automatically."
+      - name: Upload complete package
         uses: actions/upload-artifact@v4
         with:
-          name: TheRake-Windows-Complete
+          name: TheRake-Windows-SelfContained
           path: TheRakeWindows
