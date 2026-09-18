@@ -132,9 +132,21 @@ function normalizeRake(root){
   root.updateMatrixWorld(true);
 }
 
-function loadRake(){
+async function loadRake(){
   const loader=new THREE.GLTFLoader();
-  loader.load('./assets/rake/rake.glb',g=>{
+  const url='/assets/rake/rake.glb?cache='+Date.now();
+  $('loadtext').textContent='Checking Rake model…';
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),15000);
+    const response=await fetch(url,{cache:'no-store',signal:controller.signal});
+    clearTimeout(timer);
+    if(!response.ok)throw new Error('HTTP '+response.status+' '+response.statusText+' for '+url);
+    const total=Number(response.headers.get('content-length'))||0;
+    const buffer=await response.arrayBuffer();
+    $('loadbar').style.width='75%';
+    $('loadtext').textContent='Parsing Rake model…';
+    loader.parse(buffer,'/assets/rake/',g=>{
     const anchor=new THREE.Group();
     const visual=g.scene;
     visual.visible=true;
@@ -172,13 +184,16 @@ function loadRake(){
     $('loadbar').style.width='100%';
     $('loadtext').textContent='Rake ready.';
     setTimeout(()=>{$('loading').style.display='none'},250);
-  },xhr=>{
-    if(xhr.total){$('loadbar').style.width=Math.round(xhr.loaded/xhr.total*100)+'%'}
-    $('loadtext').textContent='Loading Rake model…';
   },err=>{
-    console.error(err);$('loadtext').textContent='Could not load assets/rake/rake.glb';
+    console.error('Rake GLB parse failed:',err);
+    $('loadtext').textContent='Rake model parse failed: '+(err&&err.message?err.message:'unknown error');
     $('status').textContent='Rake model failed';
   });
+  }catch(err){
+    console.error('Rake GLB fetch failed:',err);
+    $('loadtext').textContent=err&&err.name==='AbortError'?'Rake model timed out after 15 seconds':('Rake model failed: '+(err&&err.message?err.message:'unknown error'));
+    $('status').textContent='Rake model failed';
+  }
 }
 
 function createRemote(p){
