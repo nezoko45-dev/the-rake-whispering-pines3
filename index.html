@@ -72,6 +72,47 @@ function anim(name){
  Object.values(actions).forEach(a=>a.fadeOut(.08));
  actions[name].reset().fadeIn(.08).play();active=name;
 }
+const PATH_CELL=4, PATH_RADIUS=28, PATH_SIZE=15;
+function findPath(sx,sz,gx,gz){
+ const minX=Math.floor((sx-PATH_RADIUS)/PATH_CELL), minZ=Math.floor((sz-PATH_RADIUS)/PATH_CELL);
+ const maxX=Math.floor((sx+PATH_RADIUS)/PATH_CELL), maxZ=Math.floor((sz+PATH_RADIUS)/PATH_CELL);
+ const start={x:Math.round(sx/PATH_CELL),z:Math.round(sz/PATH_CELL)};
+ const goal={x:Math.round(gx/PATH_CELL),z:Math.round(gz/PATH_CELL)};
+ const key=(x,z)=>x+','+z, open=[{x:start.x,z:start.z,g:0,f:0}], came=new Map, gScore=new Map([[key(start.x,start.z),0]]), closed=new Set;
+ const h=(x,z)=>Math.hypot(x-goal.x,z-goal.z);
+ while(open.length){
+  open.sort((a,b)=>a.f-b.f); const cur=open.shift(), ck=key(cur.x,cur.z);
+  if(closed.has(ck))continue; closed.add(ck);
+  if(cur.x===goal.x&&cur.z===goal.z){
+   const out=[];let k=ck;
+   while(k){const [x,z]=k.split(',').map(Number);out.push({x:x*PATH_CELL,z:z*PATH_CELL});k=came.get(k);}
+   return out.reverse();
+  }
+  for(let ox=-1;ox<=1;ox++)for(let oz=-1;oz<=1;oz++){
+   if(!ox&&!oz)continue;
+   const nx=cur.x+ox,nz=cur.z+oz;
+   if(nx<minX/PATH_CELL||nx>maxX/PATH_CELL||nz<minZ/PATH_CELL||nz>maxZ/PATH_CELL)continue;
+   const nk=key(nx,nz),ng=cur.g+((ox&&oz)?1.414:1);
+   if(ng<(gScore.get(nk)??Infinity)){gScore.set(nk,ng);came.set(nk,ck);open.push({x:nx,z:nz,g:ng,f:ng+h(nx,nz)});}
+  }
+ }
+ return [{x:gx,z:gz}];
+}
+let rakePath=[],rakePathIndex=0,rakePathTimer=0;
+function updateRakePath(now){
+ if(now<rakePathTimer)return;
+ rakePath=findPath(rakeAI.x,rakeAI.z,player.x,player.z);
+ rakePathIndex=Math.min(1,Math.max(0,rakePath.length-1));
+ rakePathTimer=now+250;
+}
+function moveRakeAlongPath(dt){
+ if(!rakePath.length)return;
+ const p=rakePath[rakePathIndex]||{x:player.x,z:player.z};
+ const dx=p.x-rakeAI.x,dz=p.z-rakeAI.z,d=Math.hypot(dx,dz);
+ if(d<1.5){if(rakePathIndex<rakePath.length-1)rakePathIndex++;return;}
+ const s=Math.hypot(player.x-rakeAI.x,player.z-rakeAI.z)<=45?19:7;
+ rakeAI.x+=dx/d*s*dt;rakeAI.z+=dz/d*s*dt;rakeAI.y=0;rakeAI.yaw=Math.atan2(dx,dz);
+}
 function loadRake(){
  status.textContent='Loading Rake GLB...';
  const url='https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb';
@@ -81,7 +122,9 @@ function loadRake(){
   // Only scale the model around its existing root; do not center it by its mesh bounds.
   const box=new THREE.Box3().setFromObject(rake),size=box.getSize(new THREE.Vector3());
   rake.scale.setScalar(6/Math.max(size.y,.001));
-  rake.position.set(rakeAI.x,rakeAI.y,rakeAI.z);
+  const grounded=new THREE.Box3().setFromObject(rake);
+  rake.userData.groundOffset=-grounded.min.y;
+  rake.position.set(rakeAI.x,rakeAI.y+rake.userData.groundOffset,rakeAI.z);
   // The GLB's forward direction is -Z; face that direction at spawn.
   rake.rotation.y=0;
   scene.add(rake);
@@ -120,9 +163,9 @@ function loop(now){
  if(now>=rakeAI.stunUntil){
   const dx=player.x-rakeAI.x,dz=player.z-rakeAI.z,d=Math.hypot(dx,dz)||1;
   if(d<=8){rakeAI.state='attack';if(now>=rakeAI.nextAttack){rakeAI.nextAttack=now+650;player.hp=Math.max(0,player.hp-20);$('flash').style.opacity=.4;setTimeout(()=>$('flash').style.opacity=0,100);}}
-  else{rakeAI.state=d<=45?'chase':'stalking';const s=d<=45?19:7;rakeAI.x+=dx/d*s*dt;rakeAI.z+=dz/d*s*dt;rakeAI.yaw=Math.atan2(dx,dz);}
+  else{rakeAI.state=d<=45?'chase':'stalking';updateRakePath(now);moveRakeAlongPath(dt);}
  }else if(rakeAI.state!=='parry')rakeAI.state='stunned';
- if(rake){rake.position.set(rakeAI.x,rakeAI.y,rakeAI.z);rake.rotation.y=rakeAI.yaw;}
+ if(rake){const baseY=rake.userData.groundOffset||0;rake.position.set(rakeAI.x,rakeAI.y+baseY,rakeAI.z);rake.rotation.y=rakeAI.yaw;}
  if(mixer)mixer.update(dt);
  const an=rakeAI.state==='attack'?'attack':rakeAI.state==='parry'?'parry':rakeAI.state==='chase'?(actions.chase?'chase':'walk'):(actions.walk?'walk':'idle');
  anim(actions[an]?an:(actions.idle?'idle':Object.keys(actions)[0]));
