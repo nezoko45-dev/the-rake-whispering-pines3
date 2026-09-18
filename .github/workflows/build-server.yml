@@ -5,18 +5,35 @@ on:
     paths:
       - server.js
       - package.json
+      - index.html
+      - assets/**
       - .github/workflows/build-server.yml
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 18
+
       - run: npm install
+
       - run: npm run build:exe
+
+      - name: Package server and browser files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path TheRakeServerPackage | Out-Null
+          Copy-Item TheRakeServer.exe TheRakeServerPackage\
+          Copy-Item index.html TheRakeServerPackage\
+          if (Test-Path assets) {
+            Copy-Item assets TheRakeServerPackage\assets -Recurse
+          }
+          Compress-Archive -Path TheRakeServerPackage\* -DestinationPath TheRakeServer.zip -Force
+
       - uses: actions/upload-artifact@v4
         with:
           name: TheRakeServer
-          path: TheRakeServer.exe
+          path: TheRakeServer.zip
