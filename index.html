@@ -119,17 +119,22 @@ function loadRake(){
  const url='https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb';
  new THREE.GLTFLoader().load(url,g=>{
   rake=g.scene;
-  rakeAI.x=0;rakeAI.y=0;rakeAI.z=-18;rakeAI.yaw=0;
+  rakeAI.x=0;rakeAI.y=0;rakeAI.z=-12;rakeAI.yaw=0;
+  rake.visible=true;
+  rake.traverse(o=>{if(o.isMesh){o.visible=true;o.frustumCulled=false;}});
   // Keep the Three.js object origin at the AI/root position.
   // Only scale the model around its existing root; do not center it by its mesh bounds.
   const box=new THREE.Box3().setFromObject(rake),size=box.getSize(new THREE.Vector3());
-  rake.scale.setScalar(6/Math.max(size.y,.001));
+  const modelHeight=Math.max(size.y,.001);
+  rake.scale.setScalar(6/modelHeight);
+  rake.updateMatrixWorld(true);
   rake.updateMatrixWorld(true);
   const grounded=new THREE.Box3().setFromObject(rake);
-  // Keep the model's feet exactly on the ground while its AI root remains at ground level.
+  // Force the visible feet to Y=0. Keep X/Z rooted at the AI position.
   rake.userData.groundOffset=-grounded.min.y;
   rake.position.set(rakeAI.x,rake.userData.groundOffset,rakeAI.z);
   rake.updateMatrixWorld(true);
+  console.log('Rake loaded:', {height:grounded.max.y-grounded.min.y, position:rake.position.toArray(), animations:g.animations.map(a=>a.name)});
   // The GLB's forward direction is -Z; face that direction at spawn.
   rake.rotation.y=0;
   scene.add(rake);
@@ -157,7 +162,7 @@ addEventListener('mousedown',e=>{
  if(player.charge&&face>.82){rakeAI.state='parry';rakeAI.stunUntil=performance.now()+350;player.hp=Math.max(0,player.hp-10);}
  else{rakeAI.state='stunned';rakeAI.stunUntil=performance.now()+2500;}
 });
-btn.onclick=()=>{start.style.display='none';renderer.domElement.requestPointerLock();loadRake();};
+btn.onclick=()=>{start.style.display='none';renderer.domElement.requestPointerLock();loadRake();player.yaw=0;player.pitch=0;};
 let last=performance.now();
 function loop(now){
  requestAnimationFrame(loop);
