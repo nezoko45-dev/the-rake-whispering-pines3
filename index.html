@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Rake - Three.js AI</title>
+<title>The Rake - Rebuilt</title>
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050608;color:#fff;font-family:Arial,sans-serif}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070908;color:#fff;font-family:Arial,sans-serif}
 canvas{display:block}
 #hud{position:fixed;z-index:5;left:18px;top:16px;text-shadow:0 2px 5px #000;pointer-events:none}
-#title{font-size:25px;font-weight:800;letter-spacing:4px}
-.stat{margin-top:5px;font-size:14px}.help{margin-top:12px;font-size:12px;opacity:.8}
+#title{font-size:25px;font-weight:900;letter-spacing:5px}
+.stat{margin-top:5px;font-size:14px}.help{margin-top:12px;font-size:12px;opacity:.78}
 #cross{position:fixed;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);font-size:22px}
-#start{position:fixed;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;background:#050608}
-#startBox{max-width:520px;text-align:center;padding:30px}
-#start h1{letter-spacing:6px;margin:0 0 12px}
-#start button{padding:13px 26px;border:0;border-radius:7px;font-weight:700;cursor:pointer}
+#start{position:fixed;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;background:#050606}
+#startBox{text-align:center;padding:32px;max-width:540px}
+#start h1{font-size:44px;letter-spacing:8px;margin:0 0 8px}
+#start button{padding:14px 30px;border:0;border-radius:7px;font-weight:800;cursor:pointer}
 #msg{margin-top:12px;font-size:13px;opacity:.8}
 #flash{position:fixed;z-index:4;inset:0;background:#900;opacity:0;pointer-events:none}
 </style>
@@ -22,193 +22,345 @@ canvas{display:block}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
-<div id="start"><div id="startBox"><h1>THE RAKE</h1><p>Three.js browser build</p><button id="startBtn">START GAME</button><div id="msg">Loading Three.js...</div></div></div>
-<div id="hud"><div id="title">THE RAKE</div><div class="stat" id="status">Starting...</div><div class="stat" id="hp">HP: 100</div><div class="stat" id="state">Rake: stalking</div><div class="help">WASD move · Mouse look · Shift charge · Left click stunstick</div></div>
+<div id="start"><div id="startBox"><h1>THE RAKE</h1><p>Rebuilt Three.js AI game</p><button id="startBtn">START GAME</button><div id="msg">Preparing...</div></div></div>
+<div id="hud"><div id="title">THE RAKE</div><div class="stat" id="status">Ready</div><div class="stat" id="hp">HP: 100</div><div class="stat" id="state">Rake: stalking</div><div class="help">WASD move · Mouse look · Shift charge · Left click stunstick</div></div>
 <div id="cross">+</div><div id="flash"></div>
 <script>
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
 const status=$('status'),msg=$('msg'),start=$('start'),btn=$('startBtn');
-if(!window.THREE){msg.textContent='Three.js did not load. Check that Chrome can access the internet.';return;}
-if(!THREE.GLTFLoader){msg.textContent='GLTFLoader did not load.';return;}
-msg.textContent='Three.js ready. Click START GAME.';
+if(!window.THREE||!THREE.GLTFLoader){msg.textContent='Three.js failed to load.';return;}
+
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x050608);
-scene.fog=new THREE.Fog(0x050608,35,180);
+scene.background=new THREE.Color(0x070908);
+scene.fog=new THREE.Fog(0x070908,45,190);
 const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.05,500);
-const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'low-power'});
+camera.rotation.order='YXZ';
+
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
 renderer.setSize(innerWidth,innerHeight);
-renderer.setPixelRatio(1);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.outputEncoding=THREE.sRGBEncoding;
 document.body.insertBefore(renderer.domElement,start);
-scene.add(new THREE.HemisphereLight(0x9aa6b8,0x16120d,1.35));
-const light=new THREE.DirectionalLight(0xaab8ff,1.0);light.position.set(30,60,10);scene.add(light);
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(260,260),new THREE.MeshLambertMaterial({color:0x151c16}));
-ground.rotation.x=-Math.PI/2;scene.add(ground);
-for(let i=0;i<28;i++){
- const g=new THREE.Group();
- const t=new THREE.Mesh(new THREE.CylinderGeometry(.2,.35,6,6),new THREE.MeshLambertMaterial({color:0x241b14}));
- const c=new THREE.Mesh(new THREE.ConeGeometry(2.3,6,7),new THREE.MeshLambertMaterial({color:0x101b13}));
- t.position.y=3;c.position.y=7;g.add(t,c);
- g.position.set((Math.random()-.5)*210,0,(Math.random()-.5)*210);scene.add(g);
+
+scene.add(new THREE.HemisphereLight(0xb9c7d8,0x15110c,1.5));
+const sun=new THREE.DirectionalLight(0xd7deff,1.4);
+sun.position.set(30,70,20);scene.add(sun);
+
+const ground=new THREE.Mesh(
+ new THREE.PlaneGeometry(300,300),
+ new THREE.MeshLambertMaterial({color:0x172019})
+);
+ground.rotation.x=-Math.PI/2;
+scene.add(ground);
+
+const grid=new THREE.GridHelper(300,60,0x304030,0x1c281d);
+grid.position.y=.01;scene.add(grid);
+
+for(let i=0;i<34;i++){
+ const tree=new THREE.Group();
+ const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.38,6,7),new THREE.MeshLambertMaterial({color:0x2a1c13}));
+ const crown=new THREE.Mesh(new THREE.ConeGeometry(2.5,6,8),new THREE.MeshLambertMaterial({color:0x122016}));
+ trunk.position.y=3;crown.position.y=7;tree.add(trunk,crown);
+ tree.position.set((Math.random()-.5)*230,0,(Math.random()-.5)*230);
+ scene.add(tree);
 }
-const player={x:0,y:1,z:20,yaw:0,pitch:0,hp:100,charge:false};
-const rakeAI={x:0,y:0,z:0,yaw:0,state:'stalking',stunUntil:0,nextAttack:0};
-let rake=null,mixer=null,actions={},active='';
-function mapAnimations(anims){
- const m={};
- for(const clip of anims||[]){
-  const n=clip.name.toLowerCase();
-  if(n.includes('attack'))m.attack=clip;
-  else if(n.includes('parry')||n.includes('block'))m.parry=clip;
-  else if(n.includes('run')||n.includes('chase'))m.chase=clip;
-  else if(n.includes('walk'))m.walk=clip;
-  else if(n.includes('idle'))m.idle=clip;
+
+const player={x:0,y:1.7,z:22,yaw:0,pitch:0,hp:100,charge:false};
+const ai={x:0,y:0,z:0,yaw:0,state:'stalking',stunUntil:0,nextAttack:0};
+
+let rakeRoot=null,rakeVisual=null,mixer=null,actions={},activeAction=null;
+let rakeHeight=6;
+
+function chooseAnimations(clips){
+ const out={};
+ for(const clip of clips||[]){
+  const n=clip.name.toLowerCase().replace(/[ _-]+/g,'');
+  if(n.includes('attack'))out.attack=clip;
+  else if(n.includes('parry')||n.includes('block'))out.parry=clip;
+  else if(n.includes('run')||n.includes('chase'))out.chase=clip;
+  else if(n.includes('walk'))out.walk=clip;
+  else if(n.includes('idle'))out.idle=clip;
  }
- return m;
+ return out;
 }
-function anim(name){
- if(!mixer||!actions[name]||active===name)return;
- Object.values(actions).forEach(a=>a.fadeOut(.08));
- actions[name].reset().fadeIn(.08).play();active=name;
+function play(name){
+ const a=actions[name];
+ if(!a||activeAction===a)return;
+ if(activeAction)activeAction.fadeOut(.12);
+ a.reset().fadeIn(.12).play();
+ activeAction=a;
 }
-const PATH_CELL=4, PATH_RADIUS=28, PATH_SIZE=15;
-function findPath(sx,sz,gx,gz){
- const minX=Math.floor((sx-PATH_RADIUS)/PATH_CELL), minZ=Math.floor((sz-PATH_RADIUS)/PATH_CELL);
- const maxX=Math.floor((sx+PATH_RADIUS)/PATH_CELL), maxZ=Math.floor((sz+PATH_RADIUS)/PATH_CELL);
- const start={x:Math.round(sx/PATH_CELL),z:Math.round(sz/PATH_CELL)};
- const goal={x:Math.round(gx/PATH_CELL),z:Math.round(gz/PATH_CELL)};
- const key=(x,z)=>x+','+z, open=[{x:start.x,z:start.z,g:0,f:0}], came=new Map, gScore=new Map([[key(start.x,start.z),0]]), closed=new Set;
- const h=(x,z)=>Math.hypot(x-goal.x,z-goal.z);
+
+// Clean A* on a flat ground grid. Trees are treated as blocked cells.
+const CELL=3, RANGE=48;
+const obstacles=[];
+function buildObstacleMap(){
+ obstacles.length=0;
+ scene.traverse(o=>{
+  if(o.userData&&o.userData.rakeObstacle)obstacles.push(o);
+ });
+}
+function blocked(gx,gz){
+ const wx=gx*CELL,wz=gz*CELL;
+ for(const o of obstacles){
+  const dx=wx-o.position.x,dz=wz-o.position.z;
+  if(dx*dx+dz*dz<10)return true;
+ }
+ return false;
+}
+function astar(sx,sz,gx,gz){
+ const sxg=Math.round(sx/CELL),szg=Math.round(sz/CELL);
+ const gxg=Math.round(gx/CELL),gzg=Math.round(gz/CELL);
+ const minX=sxg-Math.ceil(RANGE/CELL),maxX=sxg+Math.ceil(RANGE/CELL);
+ const minZ=szg-Math.ceil(RANGE/CELL),maxZ=szg+Math.ceil(RANGE/CELL);
+ const key=(x,z)=>x+','+z;
+ const h=(x,z)=>Math.abs(x-gxg)+Math.abs(z-gzg);
+ const open=[{x:sxg,z:szg,g:0,f:h(sxg,szg)}],came=new Map(),score=new Map([[key(sxg,szg),0]]);
+ const closed=new Set();
  while(open.length){
-  open.sort((a,b)=>a.f-b.f); const cur=open.shift(), ck=key(cur.x,cur.z);
-  if(closed.has(ck))continue; closed.add(ck);
-  if(cur.x===goal.x&&cur.z===goal.z){
-   const out=[];let k=ck;
-   while(k){const [x,z]=k.split(',').map(Number);out.push({x:x*PATH_CELL,z:z*PATH_CELL});k=came.get(k);}
-   return out.reverse();
+  open.sort((a,b)=>a.f-b.f);
+  const cur=open.shift(),ck=key(cur.x,cur.z);
+  if(closed.has(ck))continue;
+  closed.add(ck);
+  if(cur.x===gxg&&cur.z===gzg){
+   const path=[];let k=ck;
+   while(k){const [x,z]=k.split(',').map(Number);path.push({x:x*CELL,z:z*CELL});k=came.get(k);}
+   return path.reverse();
   }
   for(let ox=-1;ox<=1;ox++)for(let oz=-1;oz<=1;oz++){
    if(!ox&&!oz)continue;
    const nx=cur.x+ox,nz=cur.z+oz;
-   if(nx<minX/PATH_CELL||nx>maxX/PATH_CELL||nz<minZ/PATH_CELL||nz>maxZ/PATH_CELL)continue;
+   if(nx<minX||nx>maxX||nz<minZ||nz>maxZ)continue;
+   if(blocked(nx,nz))continue;
    const nk=key(nx,nz),ng=cur.g+((ox&&oz)?1.414:1);
-   if(ng<(gScore.get(nk)??Infinity)){gScore.set(nk,ng);came.set(nk,ck);open.push({x:nx,z:nz,g:ng,f:ng+h(nx,nz)});}
+   if(ng<(score.get(nk)??Infinity)){
+    score.set(nk,ng);came.set(nk,ck);
+    open.push({x:nx,z:nz,g:ng,f:ng+h(nx,nz)});
+   }
   }
  }
  return [{x:gx,z:gz}];
 }
-let rakePath=[],rakePathIndex=0,rakePathTimer=0;
-function updateRakePath(now){
- if(now<rakePathTimer)return;
- rakePath=findPath(rakeAI.x,rakeAI.z,player.x,player.z);
- rakePathIndex=Math.min(1,Math.max(0,rakePath.length-1));
- if(rakePath.length===0) rakePath=[{x:player.x,z:player.z}];
- rakePathTimer=now+250;
+let path=[],pathIndex=0,nextPath=0;
+function updatePath(now){
+ if(now<nextPath)return;
+ path=astar(ai.x,ai.z,player.x,player.z);
+ pathIndex=Math.min(1,Math.max(0,path.length-1));
+ nextPath=now+220;
 }
-function moveRakeAlongPath(dt){
- if(!rakePath.length)return;
- const p=rakePath[rakePathIndex]||{x:player.x,z:player.z};
- const dx=p.x-rakeAI.x,dz=p.z-rakeAI.z,d=Math.hypot(dx,dz);
- if(d<1.5){if(rakePathIndex<rakePath.length-1)rakePathIndex++;return;}
- const s=Math.hypot(player.x-rakeAI.x,player.z-rakeAI.z)<=45?19:7;
- rakeAI.x+=dx/d*s*dt;rakeAI.z+=dz/d*s*dt;rakeAI.y=0;rakeAI.yaw=Math.atan2(dx,dz);
+function moveAI(dt){
+ if(!path.length)return;
+ const p=path[pathIndex]||{x:player.x,z:player.z};
+ let dx=p.x-ai.x,dz=p.z-ai.z,d=Math.hypot(dx,dz);
+ if(d<1.25){
+  if(pathIndex<path.length-1)pathIndex++;
+  return;
+ }
+ const dist=Math.hypot(player.x-ai.x,player.z-ai.z);
+ const speed=dist<=45?19:7;
+ ai.x+=dx/d*speed*dt;
+ ai.z+=dz/d*speed*dt;
+ ai.y=0;
+ ai.yaw=Math.atan2(dx,dz);
 }
+
+function addTreesAsObstacles(){
+ scene.traverse(o=>{
+  if(o.isGroup && o.children.length===2 && o.position.y===0){
+   o.userData.rakeObstacle=true;
+  }
+ });
+ buildObstacleMap();
+}
+
+function normalizeRake(gltf){
+ // The visual stays inside a dedicated world root.
+ rakeRoot=new THREE.Group();
+ rakeRoot.name='RakeAI_Root';
+ rakeRoot.position.set(ai.x,0,ai.z);
+ scene.add(rakeRoot);
+
+ rakeVisual=gltf.scene;
+ rakeVisual.name='RakeVisual';
+ rakeVisual.rotation.set(0,0,0);
+ rakeVisual.position.set(0,0,0);
+ rakeVisual.scale.set(1,1,1);
+ rakeVisual.traverse(o=>{
+  o.visible=true;
+  o.frustumCulled=false;
+  if(o.isMesh){
+   o.castShadow=false;o.receiveShadow=false;
+   if(o.material)o.material.side=THREE.DoubleSide;
+  }
+ });
+ rakeRoot.add(rakeVisual);
+
+ // Update world matrices before measuring, as required for correct Box3 bounds.
+ rakeRoot.updateWorldMatrix(true,true);
+ let box=new THREE.Box3().setFromObject(rakeVisual,true);
+ let size=box.getSize(new THREE.Vector3());
+ rakeHeight=Math.max(size.y,.001);
+ const targetHeight=6;
+ const s=targetHeight/rakeHeight;
+ rakeVisual.scale.setScalar(s);
+ rakeRoot.updateWorldMatrix(true,true);
+
+ // Center the rendered mesh over the AI root and put its feet at y=0.
+ box.setFromObject(rakeVisual,true);
+ const center=box.getCenter(new THREE.Vector3());
+ const minY=box.min.y;
+ rakeVisual.position.x-=center.x;
+ rakeVisual.position.z-=center.z;
+ rakeVisual.position.y-=minY;
+ rakeRoot.updateWorldMatrix(true,true);
+
+ // Face -Z by default. If the source asset is authored backwards, the root can turn it.
+ rakeVisual.rotation.y=0;
+
+ mixer=new THREE.AnimationMixer(rakeVisual);
+ const map=chooseAnimations(gltf.animations);
+ for(const k in map){
+  actions[k]=mixer.clipAction(map[k]);
+  actions[k].setLoop(THREE.LoopRepeat,Infinity);
+ }
+ if(actions.idle)play('idle');
+ else if(actions.walk)play('walk');
+ else{
+  const first=Object.keys(actions)[0];
+  if(first)play(first);
+ }
+ status.textContent='Rake AI ready';
+ msg.textContent='Rake loaded';
+ console.log('Rake normalized', {height:rakeHeight,animations:gltf.animations.map(a=>a.name)});
+}
+
 function loadRake(){
- status.textContent='Loading Rake GLB...';
- const url='https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb';
- new THREE.GLTFLoader().load(url,g=>{
-  const imported=g.scene;
-  rakeAI.x=0;rakeAI.y=0;rakeAI.z=-12;rakeAI.yaw=0;
-  // Dedicated AI root: the GLB itself never receives world-space AI transforms.
-  const root=new THREE.Group();
-  root.name='RakeAIRoot';
-  root.position.set(rakeAI.x,rakeAI.y,rakeAI.z);
-  scene.add(root);
-  rake=imported;
-  rake.name='RakeVisual';
-  rake.position.set(0,0,0);
-  rake.rotation.set(0,0,0);
-  rake.visible=true;
-  rake.traverse(o=>{if(o.isMesh){o.visible=true;o.frustumCulled=false;}});
-  // Keep the Three.js object origin at the AI/root position.
-  // Only scale the model around its existing root; do not center it by its mesh bounds.
-  const box=new THREE.Box3().setFromObject(rake),size=box.getSize(new THREE.Vector3());
-  const modelHeight=Math.max(size.y,.001);
-  rake.scale.setScalar(6/modelHeight);
-  rake.updateMatrixWorld(true);
-  rake.updateMatrixWorld(true);
-  const grounded=new THREE.Box3().setFromObject(rake);
-  // Force the visible feet to Y=0. Keep X/Z rooted at the AI position.
-  rake.userData.groundOffset=-grounded.min.y;
-  rake.position.set(rakeAI.x,rake.userData.groundOffset,rakeAI.z);
-  rake.updateMatrixWorld(true);
-  console.log('Rake loaded:', {height:grounded.max.y-grounded.min.y, position:rake.position.toArray(), animations:g.animations.map(a=>a.name)});
-  // The GLB's forward direction is -Z; face that direction at spawn.
-  rake.rotation.y=0;
-  scene.add(rake);
-  mixer=new THREE.AnimationMixer(rake);
-  const map=mapAnimations(g.animations);
-  for(const k in map)actions[k]=mixer.clipAction(map[k]);
-  anim(actions.idle?'idle':actions.walk?'walk':Object.keys(actions)[0]);
-  status.textContent='Rake AI ready';
- },undefined,e=>{status.textContent='Rake GLB failed to load';msg.textContent='The 3D model could not be downloaded.';console.error(e);});
+ status.textContent='Loading Rake...';
+ const loader=new THREE.GLTFLoader();
+ const urls=[
+  './assets/rake/rake.glb',
+  'https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/assets/rake/rake.glb',
+  'https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb'
+ ];
+ let i=0;
+ function next(){
+  if(i>=urls.length){
+   status.textContent='Rake failed to load';
+   msg.textContent='Could not load the Rake model.';
+   return;
+  }
+  const url=urls[i++];
+  loader.load(url,g=>normalizeRake(g),p=>{
+   if(p.total)status.textContent='Loading Rake '+Math.round(p.loaded/p.total*100)+'%';
+  },()=>next());
+ }
+ next();
 }
+
 const keys={};
-addEventListener('keydown',e=>keys[e.code]=true);
+addEventListener('keydown',e=>{keys[e.code]=true;if(['KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code))e.preventDefault();});
 addEventListener('keyup',e=>keys[e.code]=false);
-renderer.domElement.addEventListener('click',()=>renderer.domElement.requestPointerLock());
+
+renderer.domElement.addEventListener('click',()=>{
+ if(start.style.display==='none')renderer.domElement.requestPointerLock();
+});
 addEventListener('mousemove',e=>{
  if(document.pointerLockElement!==renderer.domElement)return;
  player.yaw-=e.movementX*.0022;
- player.pitch=Math.max(-1.45,Math.min(1.45,player.pitch-e.movementY*.0022));
+ player.pitch=Math.max(-1.35,Math.min(1.35,player.pitch-e.movementY*.0022));
 });
+
 addEventListener('mousedown',e=>{
  if(e.button!==0)return;
- const dx=rakeAI.x-player.x,dz=rakeAI.z-player.z,d=Math.hypot(dx,dz);
+ const dx=ai.x-player.x,dz=ai.z-player.z,d=Math.hypot(dx,dz);
  if(d>9)return;
  const face=(Math.sin(player.yaw)*dx-Math.cos(player.yaw)*dz)/(d||1);
- if(player.charge&&face>.82){rakeAI.state='parry';rakeAI.stunUntil=performance.now()+350;player.hp=Math.max(0,player.hp-10);}
- else{rakeAI.state='stunned';rakeAI.stunUntil=performance.now()+2500;}
+ if(player.charge&&face>.82){
+  ai.state='parry';ai.stunUntil=performance.now()+350;
+  player.hp=Math.max(0,player.hp-10);
+ }else{
+  ai.state='stunned';ai.stunUntil=performance.now()+2500;
+ }
 });
-btn.onclick=()=>{start.style.display='none';renderer.domElement.requestPointerLock();loadRake();player.yaw=0;player.pitch=0;};
+
+btn.onclick=()=>{
+ start.style.display='none';
+ player.yaw=0;player.pitch=0;
+ // Spawn the Rake 12 units in front of the player, guaranteed inside the camera view.
+ ai.x=0;ai.y=0;ai.z=8;ai.yaw=0;
+ loadRake();
+ renderer.domElement.requestPointerLock();
+};
+
 let last=performance.now();
 function loop(now){
  requestAnimationFrame(loop);
  const dt=Math.min((now-last)/1000,.05);last=now;
+
  let mx=0,mz=0;
- if(keys.KeyW)mz-=1;
- if(keys.KeyS)mz+=1;
+ if(keys.KeyW)mz+=1;
+ if(keys.KeyS)mz-=1;
  if(keys.KeyA)mx-=1;
  if(keys.KeyD)mx+=1;
- const moveLen=Math.hypot(mx,mz)||1;
- if(mx||mz){
-  mx/=moveLen;mz/=moveLen;
-  // Move relative to where the player is facing.
+ const len=Math.hypot(mx,mz);
+ if(len){
+  mx/=len;mz/=len;
   const forwardX=Math.sin(player.yaw),forwardZ=-Math.cos(player.yaw);
   const rightX=Math.cos(player.yaw),rightZ=Math.sin(player.yaw);
-  const worldX=rightX*mx+forwardX*(-mz);
-  const worldZ=rightZ*mx+forwardZ*(-mz);
-  const ps=player.charge?10:6;
-  player.x+=worldX*ps*dt;
-  player.z+=worldZ*ps*dt;
+  const worldX=forwardX*mz+rightX*mx;
+  const worldZ=forwardZ*mz+rightZ*mx;
+  const speed=keys.ShiftLeft||keys.ShiftRight?10:6;
+  player.x+=worldX*speed*dt;
+  player.z+=worldZ*speed*dt;
  }
  player.charge=!!(keys.ShiftLeft||keys.ShiftRight);
- if(now>=rakeAI.stunUntil){
-  const dx=player.x-rakeAI.x,dz=player.z-rakeAI.z,d=Math.hypot(dx,dz)||1;
-  if(d<=8){rakeAI.state='attack';if(now>=rakeAI.nextAttack){rakeAI.nextAttack=now+650;player.hp=Math.max(0,player.hp-20);$('flash').style.opacity=.4;setTimeout(()=>$('flash').style.opacity=0,100);}}
-  else{rakeAI.state=d<=45?'chase':'stalking';updateRakePath(now);moveRakeAlongPath(dt);}
- }else if(rakeAI.state!=='parry')rakeAI.state='stunned';
- if(rake&&rake.parent&&rake.parent.name==='RakeAIRoot'){rake.parent.position.set(rakeAI.x,0,rakeAI.z);rake.parent.rotation.y=rakeAI.yaw;}
+
+ if(now>=ai.stunUntil){
+  const dx=player.x-ai.x,dz=player.z-ai.z,dist=Math.hypot(dx,dz)||1;
+  if(dist<=8){
+   ai.state='attack';
+   if(now>=ai.nextAttack){
+    ai.nextAttack=now+650;
+    player.hp=Math.max(0,player.hp-20);
+    $('flash').style.opacity=.4;
+    setTimeout(()=>$('flash').style.opacity=0,100);
+   }
+  }else{
+   ai.state=dist<=45?'chase':'stalking';
+   updatePath(now);
+   moveAI(dt);
+  }
+ }else if(ai.state!=='parry')ai.state='stunned';
+
+ if(rakeRoot){
+  rakeRoot.position.set(ai.x,0,ai.z);
+  rakeRoot.rotation.y=ai.yaw;
+ }
  if(mixer)mixer.update(dt);
- const an=rakeAI.state==='attack'?'attack':rakeAI.state==='parry'?'parry':rakeAI.state==='chase'?(actions.chase?'chase':'walk'):(actions.walk?'walk':'idle');
- anim(actions[an]?an:(actions.idle?'idle':Object.keys(actions)[0]));
- camera.position.set(player.x,player.y+.65,player.z);camera.rotation.order='YXZ';camera.rotation.y=player.yaw;camera.rotation.x=player.pitch;
- $('hp').textContent='HP: '+player.hp;$('state').textContent='Rake: '+rakeAI.state;
+
+ const wanted=ai.state==='attack'?'attack':
+  ai.state==='parry'?'parry':
+  ai.state==='chase'?(actions.chase?'chase':actions.walk?'walk':'idle'):
+  (actions.walk?'walk':'idle');
+ if(actions[wanted])play(wanted);
+
+ camera.position.set(player.x,player.y,player.z);
+ camera.rotation.y=player.yaw;
+ camera.rotation.x=player.pitch;
+
+ $('hp').textContent='HP: '+player.hp;
+ $('state').textContent='Rake: '+ai.state;
  renderer.render(scene,camera);
 }
 requestAnimationFrame(loop);
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+addEventListener('resize',()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
 })();
 </script>
 </body>
