@@ -2,16 +2,22 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
-const WebSocket = require("ws");
 
-const ROOT = process.cwd();
+const ROOT = process.pkg ? path.dirname(process.execPath) : __dirname;
 const PORT = Number(process.env.PORT || 8765);
 const HOST = "127.0.0.1";
+
 const MIME = {
-  ".html":"text/html; charset=utf-8",".js":"text/javascript; charset=utf-8",
-  ".css":"text/css; charset=utf-8",".json":"application/json; charset=utf-8",
-  ".png":"image/png",".jpg":"image/jpeg",".jpeg":"image/jpeg",
-  ".webp":"image/webp",".glb":"model/gltf-binary",".ico":"image/x-icon"
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".glb": "model/gltf-binary",
+  ".ico": "image/x-icon"
 };
 
 function safeFile(urlPath) {
@@ -22,53 +28,49 @@ function safeFile(urlPath) {
   return full;
 }
 
-const server = http.createServer((req,res) => {
+const server = http.createServer((req, res) => {
   const pathname = (req.url || "/").split("?")[0];
+
   if (pathname === "/health" || pathname === "/api/health") {
-    res.writeHead(200, {"Content-Type":"application/json","Cache-Control":"no-store"});
-    return res.end(JSON.stringify({ok:true, port:PORT}));
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store"
+    });
+    return res.end(JSON.stringify({ ok: true, port: PORT }));
   }
+
   const file = safeFile(req.url);
   if (!file || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
-    res.writeHead(404, {"Content-Type":"text/plain; charset=utf-8"});
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     return res.end("Not found");
   }
+
   const ext = path.extname(file).toLowerCase();
   res.writeHead(200, {
     "Content-Type": MIME[ext] || "application/octet-stream",
     "Cache-Control": ext === ".html" ? "no-store" : "public,max-age=3600"
   });
-  fs.createReadStream(file).on("error", () => {
-    if (!res.headersSent) res.writeHead(500);
-    res.end("Server error");
-  }).pipe(res);
-});
 
-const wss = new WebSocket.Server({server});
-const clients = new Set();
-wss.on("connection", ws => {
-  clients.add(ws);
-  ws.send(JSON.stringify({type:"welcome", ok:true}));
-  ws.on("close", () => clients.delete(ws));
-  ws.on("error", () => clients.delete(ws));
+  fs.createReadStream(file)
+    .on("error", () => {
+      if (!res.headersSent) res.writeHead(500);
+      res.end("Server error");
+    })
+    .pipe(res);
 });
-setInterval(() => {
-  for (const ws of clients) if (ws.readyState === WebSocket.OPEN) ws.ping();
-}, 20000);
 
 function openChrome(url) {
-  const commands = [
-    ["cmd.exe", ["/c","start","","chrome.exe",url]],
-    ["cmd.exe", ["/c","start","",url]]
-  ];
-  for (const [cmd,args] of commands) {
-    try { spawn(cmd,args,{detached:true,stdio:"ignore"}).unref(); return; } catch {}
-  }
+  try {
+    spawn("cmd.exe", ["/c", "start", "", url], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true
+    }).unref();
+  } catch (_) {}
 }
 
-server.on("error", err => {
+server.on("error", (err) => {
   console.error("The Rake server failed:", err.message);
-  if (err.code === "EADDRINUSE") console.error("Port " + PORT + " is already in use.");
   process.exitCode = 1;
 });
 
