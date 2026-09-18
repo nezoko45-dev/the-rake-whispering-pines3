@@ -432,7 +432,7 @@ function updateRake(dt){
 
   rakeRoot.position.x = rakeRenderX;
   rakeRoot.position.z = rakeRenderZ;
-  rakeRoot.rotation.y = rake.yaw;
+  rakeRoot.rotation.y = rake.yaw + Math.PI;
 
   if(mixer){
     const moving = rake.state === 'stalking' || rake.state === 'chase' || rake.state === 'retreat';
