@@ -33,11 +33,16 @@ jobs:
           Copy-Item index.html dist/the-rake/index.html
           Copy-Item server.exe dist/the-rake/server.exe
           Copy-Item -Recurse assets dist/the-rake/assets
-          Copy-Item README.md dist/the-rake/README.md
-          Set-Content dist/the-rake/START_GAME.bat '@echo off
-cd /d "%~dp0"
-start "" "%~dp0server.exe"
-'
+          if (Test-Path README.md) {
+            Copy-Item README.md dist/the-rake/README.md
+          }
+          @'
+          @echo off
+          setlocal
+          cd /d "%~dp0"
+          start "" "%~dp0server.exe"
+          exit /b 0
+          '@ | Set-Content -Encoding ASCII dist/the-rake/START_GAME.bat
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v4
