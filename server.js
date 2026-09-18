@@ -4,10 +4,42 @@ const srv=http.createServer(app),wss=new WebSocketServer({server:srv,path:'/ws'}
 const SPAWN={x:0,z:22},RSP={x:0,z:12},CELL=3,trees=[];let seed=1337;const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};for(let i=0;i<36;i++)trees.push({x:(rnd()-.5)*230,z:(rnd()-.5)*230});
 const key=(x,z)=>x+','+z,blocked=(x,z)=>{const wx=x*CELL,wz=z*CELL;if(Math.hypot(wx, wz-22)<7)return false;return trees.some(t=>Math.hypot(wx-t.x,wz-t.z)<2.5)};
 function astar(sx,sz,gx,gz){const ax=Math.round(sx/CELL),az=Math.round(sz/CELL),bx=Math.round(gx/CELL),bz=Math.round(gz/CELL),open=[{x:ax,z:az,g:0,f:Math.abs(ax-bx)+Math.abs(az-bz)}],came=new Map(),sc=new Map([[key(ax,az),0]]),closed=new Set();while(open.length){open.sort((a,b)=>a.f-b.f);const c=open.shift(),ck=key(c.x,c.z);if(closed.has(ck))continue;closed.add(ck);if(c.x===bx&&c.z===bz){const o=[];let k=ck;while(k){const [x,z]=k.split(',').map(Number);o.push({x:x*CELL,z:z*CELL});k=came.get(k)}return o.reverse()}for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){if(!dx&&!dz)continue;const nx=c.x+dx,nz=c.z+dz;if(Math.abs(nx)>76||Math.abs(nz)>76||blocked(nx,nz))continue;if(dx&&dz&&(blocked(c.x+dx,c.z)||blocked(c.x,c.z+dz)))continue;const nk=key(nx,nz),ng=c.g+(dx&&dz?1.414:1);if(ng<(sc.get(nk)??Infinity)){sc.set(nk,ng);came.set(nk,ck);open.push({x:nx,z:nz,g:ng,f:ng+Math.abs(nx-bx)+Math.abs(nz-bz)})}}}return[{x:gx,z:gz}]}
-const rake={x:0,z:12,yaw:0,state:'stalking',path:[],i:0,nextPath:0,stun:0,nextAttack:0};
-function day(){return clockTime>=6&&clockTime<18}function target(){let b=null,d=Infinity;for(const p of players.values()){const n=Math.hypot(p.x-rake.x,p.z-rake.z);if(n<d){d=n;b=p}}return b?{p:b,d}:null}
+const rake={x:0,z:12,yaw:0,state:'stalking',path:[],i:0,nextPath:0,stun:0,nextAttack:0,targetId:null};
+function day(){return clockTime>=6&&clockTime<18}
+function target(){
+  const current=rake.targetId ? players.get(rake.targetId) : null;
+  if(current && current.hp>0){
+    const d=Math.hypot(current.x-rake.x,current.z-rake.z);
+    if(d<=45)return {p:current,d};
+  }
+  rake.targetId=null;
+  let b=null,d=Infinity;
+  for(const p of players.values()){
+    if(p.hp<=0)continue;
+    const n=Math.hypot(p.x-rake.x,p.z-rake.z);
+    if(n<d){d=n;b=p}
+  }
+  if(b)rake.targetId=b.id;
+  return b?{p:b,d}:null;
+}
+function nextNearbyTarget(excludeId){
+  let b=null,d=Infinity;
+  for(const p of players.values()){
+    if(p.id===excludeId||p.hp<=0)continue;
+    const n=Math.hypot(p.x-rake.x,p.z-rake.z);
+    if(n<=45&&n<d){d=n;b=p}
+  }
+  if(b){rake.targetId=b.id;return {p:b,d};}
+  return null;
+}
 function move(dt,speed){const q=rake.path[rake.i];if(!q)return;const dx=q.x-rake.x,dz=q.z-rake.z,d=Math.hypot(dx,dz);if(d<1.1){if(rake.i<rake.path.length-1)rake.i++;return}rake.x+=dx/d*speed*dt;rake.z+=dz/d*speed*dt;rake.yaw=Math.atan2(dx,dz)}
-function tick(){const now=Date.now(),dt=Math.min((now-last)/1000,.1);last=now;clockTime=(clockTime+dt*24/480)%24;const t=target();if(now<rake.stun){rake.state='parry'}else if(day()||!t){rake.state='retreat';if(now>rake.nextPath){rake.path=astar(rake.x,rake.z,RSP.x,RSP.z);rake.i=Math.min(1,rake.path.length-1);rake.nextPath=now+400}move(dt,7)}else if(t.d<=8){rake.state='attack';if(now>=rake.nextAttack){rake.nextAttack=now+650;t.p.hp=Math.max(0,t.p.hp-20)}}else{rake.state=t.d<=45?'chase':'stalking';if(now>rake.nextPath){rake.path=astar(rake.x,rake.z,t.p.x,t.p.z);rake.i=Math.min(1,rake.path.length-1);rake.nextPath=now+250}move(dt,t.d<=45?19:7)}
+function tick(){const now=Date.now(),dt=Math.min((now-last)/1000,.1);last=now;clockTime=(clockTime+dt*24/480)%24;const t=target();if(now<rake.stun){rake.state='parry'}else if(day()||!t){rake.targetId=null;rake.state='retreat';if(now>rake.nextPath){rake.path=astar(rake.x,rake.z,RSP.x,RSP.z);rake.i=Math.min(1,rake.path.length-1);rake.nextPath=now+400}move(dt,7)}else if(t.d<=8){rake.state='attack';if(now>=rake.nextAttack){
+  rake.nextAttack=now+650;
+  t.p.hp=Math.max(0,t.p.hp-20);
+  // After each successful hit, immediately look for another living player within 45 studs.
+  if(t.p.hp<=0 || players.size>1) nextNearbyTarget(t.p.id);
+}
+}else{rake.state=t.d<=45?'chase':'stalking';if(now>rake.nextPath){rake.path=astar(rake.x,rake.z,t.p.x,t.p.z);rake.i=Math.min(1,rake.path.length-1);rake.nextPath=now+250}move(dt,t.d<=45?19:7)}
 const snap=JSON.stringify({type:'snapshot',clockTime,rake:{x:rake.x,z:rake.z,yaw:rake.yaw,state:rake.state},players:[...players.values()].map(p=>({id:p.id,x:p.x,z:p.z,yaw:p.yaw,hp:p.hp}))});for(const p of players.values())if(p.ws.readyState===1)p.ws.send(snap)}
 wss.on('connection',ws=>{const id=String(nextId++),p={id,ws,x:0,z:22,yaw:0,hp:100};players.set(id,p);ws.send(JSON.stringify({type:'welcome',id,trees}));ws.on('message',raw=>{try{const m=JSON.parse(raw);if(m.type!=='input')return;if(Number.isFinite(m.x))p.x=Math.max(-110,Math.min(110,m.x));if(Number.isFinite(m.z))p.z=Math.max(-110,Math.min(110,m.z));if(Number.isFinite(m.yaw))p.yaw=m.yaw;if(m.respawn){p.x=0;p.z=22;p.hp=100}if(m.parry&&Math.hypot(p.x-rake.x,p.z-rake.z)<=9)rake.stun=Date.now()+2500}catch{}});ws.on('close',()=>players.delete(id));ws.on('error',()=>players.delete(id))});
 setInterval(tick,50);const PORT=process.env.PORT||8080;srv.listen(PORT,'0.0.0.0',()=>console.log('The Rake multiplayer server: http://localhost:'+PORT));
