@@ -2,7 +2,8 @@ name: Build The Rake Server EXE
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - server.js
       - package.json
@@ -14,13 +15,36 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
-      - run: npx pkg server.js --targets node20-win-x64 --output TheRakeServer.exe
-      - uses: actions/upload-artifact@v4
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Verify server syntax
+        run: node --check server.js
+      - name: Build Windows EXE
+        run: npx --yes pkg@5.8.1 server.js --targets node20-win-x64 --output TheRakeServer.exe
+      - name: Verify EXE exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path ".\TheRakeServer.exe")) { throw "TheRakeServer.exe was not created" }
+          Get-Item ".\TheRakeServer.exe" | Format-List Name,Length
+      - name: Package complete game
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "TheRakeWindows" | Out-Null
+          Copy-Item "TheRakeServer.exe" "TheRakeWindows\TheRakeServer.exe"
+          Copy-Item "index.html" "TheRakeWindows\index.html"
+          Copy-Item "game.js" "TheRakeWindows\game.js"
+          Copy-Item "styles.css" "TheRakeWindows\styles.css"
+          New-Item -ItemType Directory -Force -Path "TheRakeWindows\assets\rake" | Out-Null
+          Copy-Item "assets\rake\rake.glb" "TheRakeWindows\assets\rake\rake.glb"
+      - name: Upload complete Windows package
+        uses: actions/upload-artifact@v4
         with:
-          name: TheRakeServer-Windows
-          path: TheRakeServer.exe
+          name: TheRake-Windows-Complete
+          path: TheRakeWindows
