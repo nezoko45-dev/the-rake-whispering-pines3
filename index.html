@@ -3,21 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Rake — Whispering Pines</title>
+<title>The Rake — Three.js</title>
 <link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
 <div id="hud">
-  <div class="title">THE RAKE</div>
-  <div id="status">Loading AI…</div>
-  <div id="players">Players: 1</div>
-  <div id="health">HP: 100</div>
-  <div id="rakeState">Rake: stalking</div>
-  <div class="help">WASD move · Mouse look · Shift charge · Left click stunstick</div>
+ <div class="title">THE RAKE</div>
+ <div id="status">Starting Three.js…</div>
+ <div id="players">Players: 1</div>
+ <div id="health">HP: 100</div>
+ <div id="rakeState">Rake: stalking</div>
+ <div class="help">WASD move · Mouse look · Shift charge · Left click stunstick</div>
 </div>
 <div id="crosshair">+</div>
 <div id="damageFlash"></div>
-<div id="loadStatus">Loading Rake AI model…</div>
-<script type="module" src="game.js"></script>
+<div id="loadStatus">Loading Rake GLB…</div>
+<script src="game.js"></script>
 </body>
 </html>
