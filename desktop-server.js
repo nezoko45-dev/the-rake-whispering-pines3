@@ -4,7 +4,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 const ROOT = process.pkg ? path.dirname(process.execPath) : __dirname;
-const PORT = Number(process.env.PORT || 8765);
+const REQUESTED_PORT = Number(process.env.PORT || 8765);
 const HOST = "127.0.0.1";
 
 const MIME = {
@@ -61,11 +61,11 @@ const server = http.createServer((req, res) => {
 
 function openChrome(url) {
   try {
-    spawn("cmd.exe", ["/c", "start", "", url], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true
-    }).unref();
+    spawn("explorer.exe", [url], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    return;
+  } catch (_) {}
+  try {
+    spawn("cmd.exe", ["/c", "start", "", url], { detached: true, stdio: "ignore", windowsHide: true }).unref();
   } catch (_) {}
 }
 
@@ -74,8 +74,27 @@ server.on("error", (err) => {
   process.exitCode = 1;
 });
 
-server.listen(PORT, HOST, () => {
-  const url = "http://" + HOST + ":" + PORT + "/index.html";
-  console.log("The Rake server is running at " + url);
-  openChrome(url);
+function startServer(port) {
+  server.listen(port, HOST, () => {
+    const actualPort = server.address().port;
+    const url = "http://" + HOST + ":" + actualPort + "/index.html";
+    console.log("The Rake server is running at " + url);
+    openChrome(url);
+  });
+}
+
+try {
+  startServer(REQUESTED_PORT);
+} catch (_) {
+  startServer(0);
+}
+
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    try {
+      server.close(() => startServer(0));
+    } catch (_) {
+      process.exitCode = 1;
+    }
+  }
 });
