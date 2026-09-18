@@ -39,6 +39,7 @@ scene.fog=new THREE.Fog(0x050706,42,190);
 const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.05,500);
 camera.rotation.order='YXZ';
 const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+renderer.domElement.id='gameCanvas';
 renderer.setSize(innerWidth,innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.outputEncoding=THREE.sRGBEncoding;
@@ -128,6 +129,8 @@ function loadRake(){
  makeRakeMarker();
  syncRakeVisual();
  const loader=new THREE.GLTFLoader();
+ if(rakeMarker){rakeMarker.visible=true;syncRakeVisual();}
+ status.textContent='Rake AI ready';
  const urls=['./assets/rake/rake.glb','https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/assets/rake/rake.glb','https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb'];
  let n=0;
  function tryNext(){
@@ -156,7 +159,7 @@ function loadRake(){
    for(const k in map)actions[k]=mixer.clipAction(map[k]);
    play(actions.idle?'idle':actions.walk?'walk':Object.keys(actions)[0]);
    syncRakeVisual();status.textContent='Rake visible · AI active';msg.textContent='Rake loaded successfully.';
-  },undefined,()=>tryNext());
+  },undefined,err=>{console.error('Rake GLB load failed',urls[n-1],err);tryNext();});
  }
  tryNext();
 }
@@ -215,6 +218,8 @@ function loop(now){
 requestAnimationFrame(loop);
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
 msg.textContent='Ready. Click START GAME.';
+makeRakeMarker();
+syncRakeVisual();
 })();
 </script>
 </body>
