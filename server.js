@@ -1,5 +1,5 @@
 const http=require('http'),fs=require('fs'),path=require('path'),WebSocket=require('ws'),{spawn}=require('child_process');
-const P=+process.env.PORT||3001,root=__dirname,players=new Map();
+const P=+process.env.PORT||3001,root=process.pkg?path.dirname(process.execPath):__dirname,players=new Map();
 const rake={x:0,y:0,z:0,yaw:0,hp:15000,state:'searching',stun:0,attack:0,path:[],i:0};
 const CELL=4,R=120,N=61;function A(x){return Math.max(0,Math.min(N-1,Math.round((x+R)/CELL)))}function K(x,z){return x+','+z}function astar(sx,sz,tx,tz){const s=[A(sx),A(sz)],t=[A(tx),A(tz)],q=[{x:s[0],z:s[1],g:0,f:0}],came=new Map(),gs=new Map([[K(...s),0]]),h=(x,z)=>Math.abs(x-t[0])+Math.abs(z-t[1]);while(q.length){q.sort((a,b)=>a.f-b.f);const n=q.shift(),nk=K(n.x,n.z);if(nk===K(...t)){const out=[];let z=nk;while(z!==K(...s)){const [x,y]=z.split(',').map(Number);out.push({x:-R+x*CELL,z:-R+y*CELL});z=came.get(z)}return out.reverse()}for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const x=n.x+dx,z=n.z+dz;if(x<0||z<0||x>=N||z>=N)continue;const kk=K(x,z),ng=n.g+1;if(gs.has(kk)&&gs.get(kk)<=ng)continue;gs.set(kk,ng);came.set(kk,nk);q.push({x,z,g:ng,f:ng+h(x,z)})}}return []}
 
