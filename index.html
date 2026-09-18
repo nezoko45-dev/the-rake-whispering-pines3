@@ -3,33 +3,133 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Rake - Three.js</title>
+<title>The Rake - Three.js AI</title>
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050608;color:#eee;font-family:Arial,sans-serif}
-canvas{display:block;position:fixed;inset:0}
-#hud{position:fixed;z-index:10;left:18px;top:16px;text-shadow:0 2px 5px #000;pointer-events:none}
-.title{font-size:24px;font-weight:800;letter-spacing:4px}
-#status,#players,#health,#rakeState{margin-top:5px;font-size:14px}
-.help{margin-top:12px;font-size:12px;opacity:.8}
-#crosshair{position:fixed;z-index:11;left:50%;top:50%;transform:translate(-50%,-50%);font-size:22px;pointer-events:none}
-#damageFlash{position:fixed;inset:0;background:#900;opacity:0;z-index:9;pointer-events:none}
-#loadStatus{position:fixed;z-index:20;left:50%;top:70%;transform:translate(-50%,-50%);padding:12px 18px;background:rgba(0,0,0,.8);border:1px solid #555;border-radius:8px;font:14px Arial,sans-serif;pointer-events:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050608;color:#fff;font-family:Arial,sans-serif}
+canvas{display:block}
+#hud{position:fixed;z-index:5;left:18px;top:16px;text-shadow:0 2px 5px #000;pointer-events:none}
+#title{font-size:25px;font-weight:800;letter-spacing:4px}
+.stat{margin-top:5px;font-size:14px}.help{margin-top:12px;font-size:12px;opacity:.8}
+#cross{position:fixed;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);font-size:22px}
+#start{position:fixed;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;background:#050608}
+#startBox{max-width:520px;text-align:center;padding:30px}
+#start h1{letter-spacing:6px;margin:0 0 12px}
+#start button{padding:13px 26px;border:0;border-radius:7px;font-weight:700;cursor:pointer}
+#msg{margin-top:12px;font-size:13px;opacity:.8}
+#flash{position:fixed;z-index:4;inset:0;background:#900;opacity:0;pointer-events:none}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
-<div id="hud">
-<div class="title">THE RAKE</div>
-<div id="status">Starting Three.js...</div>
-<div id="players">Players: 1</div>
-<div id="health">HP: 100</div>
-<div id="rakeState">Rake: stalking</div>
-<div class="help">WASD move - Mouse look - Shift charge - Left click stunstick</div>
-</div>
-<div id="crosshair">+</div>
-<div id="damageFlash"></div>
-<div id="loadStatus">Loading Rake GLB...</div>
-<script src="game.js?v=3"></script>
+<div id="start"><div id="startBox"><h1>THE RAKE</h1><p>Three.js browser build</p><button id="startBtn">START GAME</button><div id="msg">Loading Three.js...</div></div></div>
+<div id="hud"><div id="title">THE RAKE</div><div class="stat" id="status">Starting...</div><div class="stat" id="hp">HP: 100</div><div class="stat" id="state">Rake: stalking</div><div class="help">WASD move · Mouse look · Shift charge · Left click stunstick</div></div>
+<div id="cross">+</div><div id="flash"></div>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const status=$('status'),msg=$('msg'),start=$('start'),btn=$('startBtn');
+if(!window.THREE){msg.textContent='Three.js did not load. Check that Chrome can access the internet.';return;}
+if(!THREE.GLTFLoader){msg.textContent='GLTFLoader did not load.';return;}
+msg.textContent='Three.js ready. Click START GAME.';
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x050608);
+scene.fog=new THREE.Fog(0x050608,35,180);
+const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.05,500);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'low-power'});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(1);
+document.body.insertBefore(renderer.domElement,start);
+scene.add(new THREE.HemisphereLight(0x9aa6b8,0x16120d,1.35));
+const light=new THREE.DirectionalLight(0xaab8ff,1.0);light.position.set(30,60,10);scene.add(light);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(260,260),new THREE.MeshLambertMaterial({color:0x151c16}));
+ground.rotation.x=-Math.PI/2;scene.add(ground);
+for(let i=0;i<28;i++){
+ const g=new THREE.Group();
+ const t=new THREE.Mesh(new THREE.CylinderGeometry(.2,.35,6,6),new THREE.MeshLambertMaterial({color:0x241b14}));
+ const c=new THREE.Mesh(new THREE.ConeGeometry(2.3,6,7),new THREE.MeshLambertMaterial({color:0x101b13}));
+ t.position.y=3;c.position.y=7;g.add(t,c);
+ g.position.set((Math.random()-.5)*210,0,(Math.random()-.5)*210);scene.add(g);
+}
+const player={x:0,y:1,z:20,yaw:0,pitch:0,hp:100,charge:false};
+const rakeAI={x:0,y:0,z:0,yaw:0,state:'stalking',stunUntil:0,nextAttack:0};
+let rake=null,mixer=null,actions={},active='';
+function mapAnimations(anims){
+ const m={};
+ for(const clip of anims||[]){
+  const n=clip.name.toLowerCase();
+  if(n.includes('attack'))m.attack=clip;
+  else if(n.includes('parry')||n.includes('block'))m.parry=clip;
+  else if(n.includes('run')||n.includes('chase'))m.chase=clip;
+  else if(n.includes('walk'))m.walk=clip;
+  else if(n.includes('idle'))m.idle=clip;
+ }
+ return m;
+}
+function anim(name){
+ if(!mixer||!actions[name]||active===name)return;
+ Object.values(actions).forEach(a=>a.fadeOut(.08));
+ actions[name].reset().fadeIn(.08).play();active=name;
+}
+function loadRake(){
+ status.textContent='Loading Rake GLB...';
+ const url='https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb';
+ new THREE.GLTFLoader().load(url,g=>{
+  rake=g.scene;
+  const box=new THREE.Box3().setFromObject(rake),size=box.getSize(new THREE.Vector3());
+  rake.scale.setScalar(6/Math.max(size.y,.001));
+  const b=new THREE.Box3().setFromObject(rake),center=b.getCenter(new THREE.Vector3());
+  rake.position.set(-center.x,-b.min.y,-center.z);
+  scene.add(rake);
+  mixer=new THREE.AnimationMixer(rake);
+  const map=mapAnimations(g.animations);
+  for(const k in map)actions[k]=mixer.clipAction(map[k]);
+  anim(actions.idle?'idle':actions.walk?'walk':Object.keys(actions)[0]);
+  status.textContent='Rake AI ready';
+ },undefined,e=>{status.textContent='Rake GLB failed to load';msg.textContent='The 3D model could not be downloaded.';console.error(e);});
+}
+const keys={};
+addEventListener('keydown',e=>keys[e.code]=true);
+addEventListener('keyup',e=>keys[e.code]=false);
+renderer.domElement.addEventListener('click',()=>renderer.domElement.requestPointerLock());
+addEventListener('mousemove',e=>{
+ if(document.pointerLockElement!==renderer.domElement)return;
+ player.yaw-=e.movementX*.0022;
+ player.pitch=Math.max(-1.45,Math.min(1.45,player.pitch-e.movementY*.0022));
+});
+addEventListener('mousedown',e=>{
+ if(e.button!==0)return;
+ const dx=rakeAI.x-player.x,dz=rakeAI.z-player.z,d=Math.hypot(dx,dz);
+ if(d>9)return;
+ const face=(Math.sin(player.yaw)*dx-Math.cos(player.yaw)*dz)/(d||1);
+ if(player.charge&&face>.82){rakeAI.state='parry';rakeAI.stunUntil=performance.now()+350;player.hp=Math.max(0,player.hp-10);}
+ else{rakeAI.state='stunned';rakeAI.stunUntil=performance.now()+2500;}
+});
+btn.onclick=()=>{start.style.display='none';renderer.domElement.requestPointerLock();loadRake();};
+let last=performance.now();
+function loop(now){
+ requestAnimationFrame(loop);
+ const dt=Math.min((now-last)/1000,.05);last=now;
+ let x=0,z=0;if(keys.KeyW)z--;if(keys.KeyS)z++;if(keys.KeyA)x--;if(keys.KeyD)x++;
+ const len=Math.hypot(x,z)||1;player.charge=!!(keys.ShiftLeft||keys.ShiftRight);
+ const ps=player.charge?10:6;player.x+=x/len*ps*dt;player.z+=z/len*ps*dt;
+ if(now>=rakeAI.stunUntil){
+  const dx=player.x-rakeAI.x,dz=player.z-rakeAI.z,d=Math.hypot(dx,dz)||1;
+  if(d<=8){rakeAI.state='attack';if(now>=rakeAI.nextAttack){rakeAI.nextAttack=now+650;player.hp=Math.max(0,player.hp-20);$('flash').style.opacity=.4;setTimeout(()=>$('flash').style.opacity=0,100);}}
+  else{rakeAI.state=d<=45?'chase':'stalking';const s=d<=45?19:7;rakeAI.x+=dx/d*s*dt;rakeAI.z+=dz/d*s*dt;rakeAI.yaw=Math.atan2(dx,dz);}
+ }else if(rakeAI.state!=='parry')rakeAI.state='stunned';
+ if(rake){rake.position.set(rakeAI.x,rakeAI.y,rakeAI.z);rake.rotation.y=rakeAI.yaw;}
+ if(mixer)mixer.update(dt);
+ const an=rakeAI.state==='attack'?'attack':rakeAI.state==='parry'?'parry':rakeAI.state==='chase'?(actions.chase?'chase':'walk'):(actions.walk?'walk':'idle');
+ anim(actions[an]?an:(actions.idle?'idle':Object.keys(actions)[0]));
+ camera.position.set(player.x,player.y+.65,player.z);camera.rotation.order='YXZ';camera.rotation.y=player.yaw;camera.rotation.x=player.pitch;
+ $('hp').textContent='HP: '+player.hp;$('state').textContent='Rake: '+rakeAI.state;
+ renderer.render(scene,camera);
+}
+requestAnimationFrame(loop);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+})();
+</script>
 </body>
 </html>
