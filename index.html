@@ -123,8 +123,9 @@ function loadRake(){
   const box=new THREE.Box3().setFromObject(rake),size=box.getSize(new THREE.Vector3());
   rake.scale.setScalar(6/Math.max(size.y,.001));
   const grounded=new THREE.Box3().setFromObject(rake);
+  // Lock the visual model to the ground plane. The AI root itself stays at y=0.
   rake.userData.groundOffset=-grounded.min.y;
-  rake.position.set(rakeAI.x,rakeAI.y+rake.userData.groundOffset,rakeAI.z);
+  rake.position.set(rakeAI.x,rake.userData.groundOffset,rakeAI.z);
   // The GLB's forward direction is -Z; face that direction at spawn.
   rake.rotation.y=0;
   scene.add(rake);
@@ -165,7 +166,7 @@ function loop(now){
   if(d<=8){rakeAI.state='attack';if(now>=rakeAI.nextAttack){rakeAI.nextAttack=now+650;player.hp=Math.max(0,player.hp-20);$('flash').style.opacity=.4;setTimeout(()=>$('flash').style.opacity=0,100);}}
   else{rakeAI.state=d<=45?'chase':'stalking';updateRakePath(now);moveRakeAlongPath(dt);}
  }else if(rakeAI.state!=='parry')rakeAI.state='stunned';
- if(rake){const baseY=rake.userData.groundOffset||0;rake.position.set(rakeAI.x,rakeAI.y+baseY,rakeAI.z);rake.rotation.y=rakeAI.yaw;}
+ if(rake){rake.position.x=rakeAI.x;rake.position.z=rakeAI.z;rake.position.y=rake.userData.groundOffset||0;rake.rotation.y=rakeAI.yaw;}
  if(mixer)mixer.update(dt);
  const an=rakeAI.state==='attack'?'attack':rakeAI.state==='parry'?'parry':rakeAI.state==='chase'?(actions.chase?'chase':'walk'):(actions.walk?'walk':'idle');
  anim(actions[an]?an:(actions.idle?'idle':Object.keys(actions)[0]));
