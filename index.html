@@ -112,16 +112,16 @@ function moveRake(dt){
 
 function makeRakeMarker(){
  if(rakeMarker)scene.remove(rakeMarker);
- rakeMarker=new THREE.Group();
- const body=new THREE.Mesh(new THREE.CapsuleGeometry(1.15,3.8,8,16),new THREE.MeshStandardMaterial({color:0x8b0000,roughness:.75}));
+ rakeMarker=new THREE.Group();rakeMarker.name='RakeVisibleDebug';
+ const body=new THREE.Mesh(new THREE.CapsuleGeometry(1.35,4.2,8,16),new THREE.MeshBasicMaterial({color:0xff2020,depthTest:false}));
  body.position.y=2.25;
- const head=new THREE.Mesh(new THREE.SphereGeometry(1.05,16,12),new THREE.MeshStandardMaterial({color:0x8b0000,roughness:.75}));
+ const head=new THREE.Mesh(new THREE.SphereGeometry(1.15,16,12),new THREE.MeshBasicMaterial({color:0xff4040,depthTest:false}));
  head.position.y=5.15;
  rakeMarker.add(body,head);scene.add(rakeMarker);
 }
 function syncRakeVisual(){
- if(rakeRoot){rakeRoot.position.set(ai.x,0,ai.z);rakeRoot.rotation.y=ai.yaw;rakeRoot.visible=true;}
- if(rakeMarker){rakeMarker.position.set(ai.x,0,ai.z);rakeMarker.rotation.y=ai.yaw;rakeMarker.visible=!rakeVisual;}
+ if(rakeRoot){rakeRoot.position.set(ai.x,0,ai.z);rakeRoot.rotation.y=ai.yaw;rakeRoot.visible=true;rakeRoot.updateMatrixWorld(true);}
+ if(rakeMarker){rakeMarker.position.set(ai.x,0,ai.z);rakeMarker.rotation.y=ai.yaw;rakeMarker.visible=true;rakeMarker.updateMatrixWorld(true);}
 }
 function loadRake(){
  status.textContent='Rake spawning...';
@@ -146,6 +146,9 @@ function loadRake(){
    const center=box.getCenter(new THREE.Vector3());
    rakeVisual.position.x-=center.x;rakeVisual.position.z-=center.z;rakeVisual.position.y-=box.min.y;
    rakeVisual.rotation.set(0,Math.PI,0);
+   rakeVisual.visible=true;
+   rakeVisual.renderOrder=10;
+   rakeVisual.traverse(o=>{o.visible=true;o.frustumCulled=false;if(o.isMesh){o.renderOrder=10;o.material.depthWrite=true;o.material.transparent=false}});
    rakeRoot.position.set(ai.x,0,ai.z);
    mixer=new THREE.AnimationMixer(rakeVisual);
    actions={};active=null;
