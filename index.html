@@ -137,16 +137,29 @@ function loadRake(){
   loader.load('./assets/rake/rake.glb',g=>{
     const anchor=new THREE.Group();
     const visual=g.scene;
+    visual.visible=true;
     visual.traverse(o=>{
+      o.visible=true;
       if(o.isMesh){
         o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
-        if(o.material){o.material.transparent=false}
+        const mats=Array.isArray(o.material)?o.material:[o.material];
+        for(const mat of mats){
+          if(!mat)continue;
+          mat.transparent=false;
+          mat.opacity=1;
+          mat.depthWrite=true;
+          mat.depthTest=true;
+          mat.needsUpdate=true;
+        }
       }
     });
+    // Keep the imported GLB intact; only normalize its visual container.
     anchor.add(visual);
     normalizeRake(visual);
     anchor.rotation.y=Math.PI;
+    anchor.position.set(rake.x,.08,rake.z);
     rakeRoot=anchor;rakeVisual=visual;scene.add(anchor);
+    console.log('Rake GLB loaded:',g.animations.map(a=>a.name), 'meshes:',visual.getObjectsByProperty('isMesh',true).length);
     mixer=new THREE.AnimationMixer(visual);
     const mapped=animationMap(g.animations);
     actions={};
@@ -260,9 +273,13 @@ function updateRake(dt){
   }
   // Keep the animated/skinned feet on the forest floor even when the GLB has root motion.
   if(rakeVisual){
+    // Correct root-motion/animation offsets without allowing the model to disappear below terrain.
     rakeRoot.updateMatrixWorld(true);
     const box=new THREE.Box3().setFromObject(rakeVisual);
-    if(Number.isFinite(box.min.y))rakeRoot.position.y+=Math.max(-.03,Math.min(.08,-box.min.y));
+    if(Number.isFinite(box.min.y)){
+      const correction=Math.max(-.02,Math.min(.12,-box.min.y));
+      rakeRoot.position.y+=correction;
+    }
   }
 }
 
