@@ -11,6 +11,7 @@ on:
       - game.js
       - styles.css
       - assets/rake/rake.glb
+      - .github/workflows/build-server.yml
 jobs:
   build:
     runs-on: windows-latest
@@ -20,14 +21,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 18
           cache: npm
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Verify server syntax
         run: node --check server.js
       - name: Build Windows EXE
-        run: npx --yes pkg@5.8.1 server.js --targets node20-win-x64 --output TheRakeServer.exe
+        run: npx --yes pkg@5.8.1 server.js --targets node18-win-x64 --output TheRakeServer.exe
       - name: Verify EXE exists
         shell: pwsh
         run: |
