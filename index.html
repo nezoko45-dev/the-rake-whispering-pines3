@@ -77,10 +77,13 @@ function loadRake(){
  const url='https://cdn.jsdelivr.net/gh/nezoko45-dev/the-rake-whispering-pines3@main/assets/rake/rake.glb';
  new THREE.GLTFLoader().load(url,g=>{
   rake=g.scene;
+  // Keep the Three.js object origin at the AI/root position.
+  // Only scale the model around its existing root; do not center it by its mesh bounds.
   const box=new THREE.Box3().setFromObject(rake),size=box.getSize(new THREE.Vector3());
   rake.scale.setScalar(6/Math.max(size.y,.001));
-  const b=new THREE.Box3().setFromObject(rake),center=b.getCenter(new THREE.Vector3());
-  rake.position.set(-center.x,-b.min.y,-center.z);
+  rake.position.set(rakeAI.x,rakeAI.y,rakeAI.z);
+  // The GLB's forward direction is -Z; face that direction at spawn.
+  rake.rotation.y=0;
   scene.add(rake);
   mixer=new THREE.AnimationMixer(rake);
   const map=mapAnimations(g.animations);
