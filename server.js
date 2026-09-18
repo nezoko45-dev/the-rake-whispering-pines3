@@ -5,9 +5,20 @@ const CELL=4,R=120,N=61;function A(x){return Math.max(0,Math.min(N-1,Math.round(
 
 const d=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z),near=()=>[...players.values()].filter(p=>p.hp>0).sort((a,b)=>d(a,rake)-d(b,rake))[0];
 function tick(){const p=near(),now=Date.now();if(now<rake.stun){rake.state='stunned';return}if(!p){rake.state='searching';return}const q=d(p,rake);if(q<=8){rake.state='attack';if(now>rake.attack){rake.attack=now+650;p.hp=Math.max(0,p.hp-20)}}else{rake.state=q<=45?'chase':'stalking';const s=q<=45?19:7;if(!rake.path.length||rake.i>=rake.path.length||Math.random()<.08){rake.path=astar(rake.x,rake.z,p.x,p.z);rake.i=0}const n=rake.path[rake.i];if(n){const dx=n.x-rake.x,dz=n.z-rake.z,l=Math.hypot(dx,dz)||1;rake.x+=dx/l*s*.05;rake.z+=dz/l*s*.05;rake.yaw=Math.atan2(dx,dz);if(Math.hypot(dx,dz)<1.2)rake.i++}else{const l=q||1;rake.x+=(p.x-rake.x)/l*s*.05;rake.z+=(p.z-rake.z)/l*s*.05;rake.yaw=Math.atan2(p.x-rake.x,p.z-rake.z)}}}
+const EMBEDDED_ASSETS = {};
 const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.glb':'model/gltf-binary','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp'};
-function findFile(u){for(const root of roots){const f=path.resolve(root,'.'+u);if(f.startsWith(path.resolve(root)+path.sep)&&fs.existsSync(f))return f}return null}
-const server=http.createServer((req,res)=>{let u=(req.url||'/').split('?')[0];if(u==='/')u='/index.html';let f=findFile(u);if(!f)return res.writeHead(404,{'Content-Type':'text/plain'}).end('Not found: '+u);res.writeHead(200,{'Content-Type':MIME[path.extname(f).toLowerCase()]||'application/octet-stream','Cache-Control':'no-store'});fs.createReadStream(f).pipe(res)}),wss=new WebSocket.Server({server});
+function asset(u){
+  if(EMBEDDED_ASSETS[u]) return {body:Buffer.from(EMBEDDED_ASSETS[u].data,EMBEDDED_ASSETS[u].encoding),type:EMBEDDED_ASSETS[u].type};
+  return null;
+}
+const server=http.createServer((req,res)=>{
+  let u=(req.url||'/').split('?')[0];
+  if(u==='/')u='/index.html';
+  const a=asset(u);
+  if(!a)return res.writeHead(404,{'Content-Type':'text/plain'}).end('Not found: '+u);
+  res.writeHead(200,{'Content-Type':a.type,'Cache-Control':'no-store'});
+  res.end(a.body);
+}),wss=new WebSocket.Server({server});
 wss.on('connection',ws=>{const id=Math.random().toString(36).slice(2,10),p={id,ws,x:0,y:0,z:20,yaw:0,hp:100,charging:false};players.set(id,p);ws.send(JSON.stringify({type:'welcome',id,player:p}));ws.on('message',raw=>{let m;try{m=JSON.parse(raw)}catch{return}if(m.type==='input'){p.yaw=+m.yaw||0;p.charging=!!m.charging;const l=Math.hypot(m.x||0,m.z||0)||1,s=p.charging?10:6;p.x+=m.x/l*s*.05;p.z+=m.z/l*s*.05}if(m.type==='stunstick'){const q=d(p,rake);if(q>9)return;const dx=rake.x-p.x,dz=rake.z-p.z,l=Math.hypot(dx,dz)||1,face=(Math.sin(p.yaw)*dx-Math.cos(p.yaw)*dz)/l;if(p.charging&&face>.82){rake.state='parry';rake.stun=Date.now()+350;p.hp=Math.max(0,p.hp-10);ws.send(JSON.stringify({type:'stunstick'}));return}rake.hp=Math.max(0,rake.hp-45);rake.stun=Date.now()+2500}});ws.on('close',()=>players.delete(id))});
 setInterval(()=>{tick();const msg=JSON.stringify({type:'state',players:[...players.values()].map(p=>({id:p.id,x:p.x,y:p.y,z:p.z,yaw:p.yaw,hp:p.hp})),rake});for(const p of players.values())if(p.ws.readyState===1)p.ws.send(msg)},50);
 function openChrome(){if(process.platform!=='win32')return;const url=`http://127.0.0.1:${P}/`;const candidates=[process.env['PROGRAMFILES']+'\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',process.env['PROGRAMFILES(X86)']+'\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',process.env['LOCALAPPDATA']+'\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe'];const exe=candidates.find(x=>x&&fs.existsSync(x));try{if(exe)spawn(exe,['--new-window',url],{detached:true,stdio:'ignore'}).unref();else spawn('cmd.exe',['/c','start','chrome','--new-window',url],{detached:true,stdio:'ignore'}).unref();}catch(e){console.error('Could not open Chrome:',e.message)}}
