@@ -1,14 +1,41 @@
-const path=require('path');
-const http=require('http');
-const express=require('express');
-const {WebSocketServer}=require('ws');
-const app=express();
-const root=__dirname;
-app.use(express.static(root,{extensions:['html']}));
-app.get('/health',(req,res)=>res.json({ok:true,game:'The Rake'}));
-const server=http.createServer(app);
-const wss=new WebSocketServer({server,path:'/ws'});
-const clients=new Set();
-wss.on('connection',ws=>{clients.add(ws);ws.send(JSON.stringify({type:'connected'}));ws.on('close',()=>clients.delete(ws));ws.on('message',data=>{for(const c of clients)if(c!==ws&&c.readyState===1)c.send(data);});});
-const PORT=process.env.PORT||8080;
-server.listen(PORT,'0.0.0.0',()=>console.log('The Rake server running on http://localhost:'+PORT));
+const path = require('path');
+const http = require('http');
+const express = require('express');
+const { WebSocketServer } = require('ws');
+const app = express();
+
+const root = process.pkg ? path.dirname(process.execPath) : __dirname;
+app.use(express.static(root, { extensions: ['html'] }));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(root, 'index.html'));
+});
+
+app.get('/health', (req, res) => {
+  res.json({ ok: true, game: 'The Rake' });
+});
+
+app.use((req, res) => {
+  res.status(404).send('The Rake server is running, but this file was not found: ' + req.path);
+});
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server, path: '/ws' });
+const clients = new Set();
+
+wss.on('connection', ws => {
+  clients.add(ws);
+  ws.send(JSON.stringify({ type: 'connected' }));
+  ws.on('close', () => clients.delete(ws));
+  ws.on('message', data => {
+    for (const c of clients) {
+      if (c !== ws && c.readyState === 1) c.send(data);
+    }
+  });
+});
+
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log('The Rake server running on http://localhost:' + PORT);
+  console.log('Serving game files from: ' + root);
+});
