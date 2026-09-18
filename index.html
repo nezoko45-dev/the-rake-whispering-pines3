@@ -136,6 +136,8 @@ let rakeVisual = null;
 let mixer = null;
 let actions = {};
 let activeAction = null;
+let rakeRenderX = 0;
+let rakeRenderZ = 0;
 let last = performance.now();
 let lastSend = 0;
 let lastHp = 100;
@@ -253,6 +255,8 @@ function loadRake(){
 
       rakeRoot = anchor;
       rakeVisual = visual;
+      rakeRenderX = rake.x;
+      rakeRenderZ = rake.z;
       scene.add(anchor);
 
       installAnimations(gltf.animations, visual);
@@ -420,22 +424,36 @@ function move(dt){
 function updateRake(dt){
   if(!rakeRoot) return;
 
-  rakeRoot.position.x = rake.x;
-  rakeRoot.position.z = rake.z;
+  // Smooth the networked position so the Rake does not teleport/sliding-snap
+  // between 50 ms server snapshots.
+  const follow = 1 - Math.exp(-dt * 14);
+  rakeRenderX = THREE.MathUtils.lerp(rakeRenderX, rake.x, follow);
+  rakeRenderZ = THREE.MathUtils.lerp(rakeRenderZ, rake.z, follow);
+
+  rakeRoot.position.x = rakeRenderX;
+  rakeRoot.position.z = rakeRenderZ;
   rakeRoot.rotation.y = rake.yaw;
 
   if(mixer){
-    mixer.update(dt);
+    const moving = rake.state === 'stalking' || rake.state === 'chase' || rake.state === 'retreat';
     const desired =
       rake.state === 'attack' ? 'attack' :
       rake.state === 'parry' ? 'parry' :
-      rake.state === 'chase' && actions.chase ? 'chase' :
-      actions.walk ? 'walk' :
+      moving && actions.walk ? 'walk' :
       actions.idle ? 'idle' : 'walk';
+
     play(desired);
+
+    // The GLB only contains a walking locomotion clip, so speed the
+    // animation up during the 19-stud chase instead of letting the body
+    // slide while the server moves it.
+    if(activeAction === actions.walk){
+      activeAction.timeScale = rake.state === 'chase' ? 2.15 : 1.0;
+    }
+    mixer.update(dt);
   }
 
-  // Root-motion-safe ground correction.
+  // Keep the animated feet on the forest floor.
   if(rakeVisual){
     rakeRoot.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(rakeVisual);
