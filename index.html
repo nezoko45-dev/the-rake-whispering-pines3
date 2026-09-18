@@ -3,23 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Rake — Three.js</title>
-<link rel="stylesheet" href="styles.css">
+<title>The Rake - Three.js</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050608;color:#eee;font-family:Arial,sans-serif}
+canvas{display:block;position:fixed;inset:0}
+#hud{position:fixed;z-index:10;left:18px;top:16px;text-shadow:0 2px 5px #000;pointer-events:none}
+.title{font-size:24px;font-weight:800;letter-spacing:4px}
+#status,#players,#health,#rakeState{margin-top:5px;font-size:14px}
+.help{margin-top:12px;font-size:12px;opacity:.8}
+#crosshair{position:fixed;z-index:11;left:50%;top:50%;transform:translate(-50%,-50%);font-size:22px;pointer-events:none}
+#damageFlash{position:fixed;inset:0;background:#900;opacity:0;z-index:9;pointer-events:none}
+#loadStatus{position:fixed;z-index:20;left:50%;top:70%;transform:translate(-50%,-50%);padding:12px 18px;background:rgba(0,0,0,.8);border:1px solid #555;border-radius:8px;font:14px Arial,sans-serif;pointer-events:none}
+</style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
 <div id="hud">
- <div class="title">THE RAKE</div>
- <div id="status">Starting Three.js…</div>
- <div id="players">Players: 1</div>
- <div id="health">HP: 100</div>
- <div id="rakeState">Rake: stalking</div>
- <div class="help">WASD move · Mouse look · Shift charge · Left click stunstick</div>
+<div class="title">THE RAKE</div>
+<div id="status">Starting Three.js...</div>
+<div id="players">Players: 1</div>
+<div id="health">HP: 100</div>
+<div id="rakeState">Rake: stalking</div>
+<div class="help">WASD move - Mouse look - Shift charge - Left click stunstick</div>
 </div>
 <div id="crosshair">+</div>
 <div id="damageFlash"></div>
-<div id="loadStatus">Loading Rake GLB…</div>
-<script src="game.js"></script>
+<div id="loadStatus">Loading Rake GLB...</div>
+<script src="game.js?v=3"></script>
 </body>
 </html>
