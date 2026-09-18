@@ -36,13 +36,13 @@ jobs:
           if (Test-Path README.md) {
             Copy-Item README.md dist/the-rake/README.md
           }
-          @'
-          @echo off
-          setlocal
-          cd /d "%~dp0"
-          start "" "%~dp0server.exe"
-          exit /b 0
-          '@ | Set-Content -Encoding ASCII dist/the-rake/START_GAME.bat
+          Set-Content -Encoding ASCII dist/the-rake/START_GAME.bat -Value @(
+            "@echo off"
+            "setlocal"
+            "cd /d %~dp0"
+            'start "" "%~dp0server.exe"'
+            "exit /b 0"
+          )
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v4
