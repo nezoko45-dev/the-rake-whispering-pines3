@@ -20,8 +20,8 @@ button:hover{background:#fff}#msg{margin-top:14px;min-height:18px;opacity:.75}
 .loadbox{width:min(420px,80vw);text-align:center}.bar{height:5px;background:#222;margin-top:16px;border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:#ddd;transition:width .2s}
 #damage{position:fixed;inset:0;z-index:4;pointer-events:none;background:rgba(180,0,0,.35);opacity:0;transition:opacity .12s}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.180.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
 <div id="start"><div class="box"><h1>THE RAKE</h1><p>WHISPERING PINES</p><button id="startBtn">ENTER THE FOREST</button><div id="msg">Start TheRakeServer.exe first.</div></div></div>
@@ -54,7 +54,7 @@ camera.rotation.order='YXZ';
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
 renderer.setSize(innerWidth,innerHeight);
-renderer.outputEncoding=THREE.sRGBEncoding;
+if('outputColorSpace' in renderer) renderer.outputColorSpace=THREE.SRGBColorSpace; else renderer.outputEncoding=THREE.sRGBEncoding;
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
