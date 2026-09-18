@@ -4,12 +4,33 @@ const scene=new THREE.Scene();scene.background=new THREE.Color(0x050608);scene.f
 const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.05,500),renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;document.body.appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0x9aa6b8,0x16120d,1.35));const moon=new THREE.DirectionalLight(0xaab8ff,1.3);moon.position.set(30,60,10);moon.castShadow=true;scene.add(moon);
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(260,260),new THREE.MeshStandardMaterial({color:0x151c16,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(260,260),new THREE.MeshStandardMaterial({color:0x151c16,roughness:1,metalness:0}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
 for(let i=0;i<90;i++){const g=new THREE.Group(),trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.4,5+Math.random()*5,7),new THREE.MeshStandardMaterial({color:0x241b14})),crown=new THREE.Mesh(new THREE.ConeGeometry(2+Math.random()*1.8,5+Math.random()*3,7),new THREE.MeshStandardMaterial({color:0x101b13}));trunk.position.y=2.5;crown.position.y=7;g.add(trunk,crown);g.position.set((Math.random()-.5)*230,0,(Math.random()-.5)*230);scene.add(g)}
 const local={id:null,pos:new THREE.Vector3(0,1,20),yaw:0,pitch:0,hp:100,charging:false,stunstickReady:true},players=new Map();let rake=null,rakeMixer=null,rakeActions={},rakeState='searching';const loader=new GLTFLoader();
 function animationMap(g){const map={};for(const c of g.animations||[]){const n=c.name.toLowerCase();if(n.includes('attack'))map.attack=c;else if(n.includes('parry')||n.includes('block'))map.parry=c;else if(n.includes('walk'))map.walk=c;else if(n.includes('run')||n.includes('chase'))map.chase=c;else if(n.includes('idle'))map.idle=c}return map}
 let activeAnim='';function playRakeAnim(n){if(!rakeMixer||!rakeActions[n]||activeAnim===n)return;for(const a of Object.values(rakeActions))a.fadeOut(.12);rakeActions[n].reset().fadeIn(.12).play();activeAnim=n}
-loader.load('/assets/rake/rake.glb',g=>{rake=g.scene;rake.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});scene.add(rake);rakeMixer=new THREE.AnimationMixer(rake);for(const [k,c] of Object.entries(animationMap(g)))rakeActions[k]=rakeMixer.clipAction(c);playRakeAnim('walk')},undefined,e=>console.error('Rake GLB load failed',e));
+const loadStatus=document.createElement('div');loadStatus.id='loadStatus';loadStatus.textContent='Loading Rake…';document.body.appendChild(loadStatus);
+loader.load('/assets/rake/rake.glb',g=>{
+  rake=g.scene;
+  rake.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material)o.material.needsUpdate=true}});
+  const box=new THREE.Box3().setFromObject(rake),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
+  const height=Math.max(size.y,0.001);
+  rake.scale.setScalar(6/height);
+  const scaledBox=new THREE.Box3().setFromObject(rake),scaledCenter=scaledBox.getCenter(new THREE.Vector3());
+  rake.position.y-=scaledBox.min.y;
+  rake.position.x-=scaledCenter.x;
+  rake.position.z-=scaledCenter.z;
+  scene.add(rake);
+  rakeMixer=new THREE.AnimationMixer(rake);
+  for(const [k,clip] of Object.entries(animationMap(g)))rakeActions[k]=rakeMixer.clipAction(clip);
+  playRakeAnim(rakeActions.idle?'idle':rakeActions.walk?'walk':Object.keys(rakeActions)[0]);
+  loadStatus.textContent='Rake loaded';
+  setTimeout(()=>loadStatus.remove(),1200);
+},undefined,e=>{
+  loadStatus.textContent='Rake failed to load — '+e.message;
+  loadStatus.style.color='#ff8080';
+  console.error('Rake GLB load failed',e);
+});
 function makePlayer(id){const g=new THREE.Group(),body=new THREE.Mesh(new THREE.CapsuleGeometry(.45,1.1,5,10),new THREE.MeshStandardMaterial({color:id===local.id?0x5577aa:0xaa6666}));body.position.y=1;body.castShadow=true;g.add(body);scene.add(g);return g}
 function setPlayer(id,p){let o=players.get(id);if(!o){o=makePlayer(id);players.set(id,o)}o.position.set(p.x,p.y,p.z)}
 function removeMissing(ids){for(const [id,o] of players)if(!ids[id]){scene.remove(o);players.delete(id)}}
