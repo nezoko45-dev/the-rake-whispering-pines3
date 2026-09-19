@@ -25,7 +25,7 @@ button{border:0;border-radius:5px;padding:14px 32px;background:#e9ece8;color:#08
   <div class="line" id="clock">Time: 22:00</div>
   <div class="line" id="rstate">Rake: STALKING</div>
   <div class="line" id="pc">Survivors: 4</div>
-  <div class="line dim">WASD · Mouse · Shift sprint · Left click parry</div>
+  <div class="line dim">WASD · Mouse · Shift sprint</div>
 </div>
 <div id="cross">+</div><div id="vignette"></div><div id="damage"></div>
 <div id="controls"><span>2D SPRITE MODE</span><span id="animLabel">IDLE</span><span id="botLabel">BOTS: READY</span></div>
@@ -193,8 +193,7 @@ function movePlayer(dt){
   player.x=Math.max(-110,Math.min(110,player.x+x*speed*dt));player.z=Math.max(-110,Math.min(110,player.z+z*speed*dt));
 }
 function parry(){
-  if(!started||!player.alive)return;
-  if(dist(player,rake)<=12&&rake.stun<=0){rake.stun=1.5;rake.state='stunned';rake.attackCooldown=.8;$('animLabel').textContent='PARRY'}
+  // Parry belongs to the Rake only; player input does not parry or stun anything.
 }
 function die(){if(!player.alive)return;player.alive=false;$('death').style.display='flex';$('msg').textContent=''}
 function resetGame(){
@@ -211,9 +210,9 @@ function generateTrees(){
   let s=rngSeed;const rand=()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296};
   for(let i=0;i<80;i++){const x=(rand()*220)-110,z=(rand()*220)-110;if(Math.hypot(x,z-22)<28)continue;trees.push({x,z})}
 }
-addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='Space')parry()});
+addEventListener('keydown',e=>{keys[e.code]=true});
 addEventListener('keyup',e=>keys[e.code]=false);
-addEventListener('mousedown',e=>{if(e.button===0)parry()});
+addEventListener('mousedown',e=>{});
 addEventListener('mousemove',e=>{if(!player.alive)return;player.yaw=Math.atan2(e.clientX-innerWidth/2,e.clientY-innerHeight/2)});
 $('startBtn').onclick=startGame;$('respawn').onclick=respawn;generateTrees();
 
