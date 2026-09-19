@@ -33,7 +33,7 @@ button{border:0;border-radius:5px;padding:14px 32px;background:#e9ece8;color:#08
 <div id="death" class="screen"><div class="box"><h1>YOU DIED</h1><p>The survivors are still fighting.</p><button id="respawn">RESPAWN</button></div></div>
 <script>
 const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
-const sheet=new Image();sheet.src='./the%20rake%20spritesheet.jpg';
+const sheet=new Image();sheet.src='https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/the%20rake%20spritesheet.jpg';
 let sheetReady=false,COLS=4,ROWS=5,cellW=1,cellH=1,frames=[],currentFrame=0,animTimer=0,animIndex=0;
 const FRAME_MS=95,worldScale=18,spriteCanvas=document.createElement('canvas'),spriteCtx=spriteCanvas.getContext('2d');
 sheet.onload=()=>{
