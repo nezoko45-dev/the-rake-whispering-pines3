@@ -13,57 +13,211 @@ canvas#game{display:block;width:100%;height:100%;image-rendering:auto}
 .box{width:min(540px,90vw);text-align:center}.box h1{font-size:48px;letter-spacing:10px;margin:0 0 8px}.box p{opacity:.7}
 button{border:0;border-radius:5px;padding:14px 32px;background:#e9ece8;color:#080a08;font-weight:900;cursor:pointer;letter-spacing:1px}button:hover{background:#fff}
 #msg{margin-top:14px;min-height:18px;opacity:.75}#damage{position:fixed;inset:0;z-index:4;pointer-events:none;background:rgba(180,0,0,.35);opacity:0}
-#controls{position:fixed;right:18px;bottom:16px;z-index:6;display:flex;gap:8px;pointer-events:none}#controls span{padding:7px 10px;border:1px solid #ffffff22;background:#050706aa;border-radius:5px;font:12px monospace;color:#ddd}
+#controls{position:fixed;right:18px;bottom:16px;z-index:6;display:flex;gap:8px;pointer-events:none;flex-wrap:wrap;justify-content:flex-end}#controls span{padding:7px 10px;border:1px solid #ffffff22;background:#050706aa;border-radius:5px;font:12px monospace;color:#ddd}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="hud"><div class="title">THE RAKE</div><div class="line" id="status">Offline</div><div class="line" id="hp">HP: 100</div><div class="line" id="clock">Time: --:--</div><div class="line" id="rstate">Rake: --</div><div class="line" id="pc">Players: 0</div><div class="line dim">WASD · Mouse · Shift sprint · Left click parry</div></div>
+<div id="hud">
+  <div class="title">THE RAKE</div>
+  <div class="line" id="status">Fake Multiplayer · 4 Survivors</div>
+  <div class="line" id="hp">HP: 100</div>
+  <div class="line" id="clock">Time: 22:00</div>
+  <div class="line" id="rstate">Rake: STALKING</div>
+  <div class="line" id="pc">Survivors: 4</div>
+  <div class="line dim">WASD · Mouse · Shift sprint · Left click parry</div>
+</div>
 <div id="cross">+</div><div id="vignette"></div><div id="damage"></div>
-<div id="controls"><span>2D SPRITE MODE</span><span id="animLabel">IDLE</span></div>
-<div id="start" class="screen"><div class="box"><h1>THE RAKE</h1><p>WHISPERING PINES · 2D</p><button id="startBtn">ENTER THE FOREST</button><div id="msg">Start TheRakeServer.exe first.</div></div></div>
-<div id="death" class="screen"><div class="box"><h1>YOU DIED</h1><p>The forest went quiet.</p><button id="respawn">RESPAWN</button></div></div>
+<div id="controls"><span>2D SPRITE MODE</span><span id="animLabel">IDLE</span><span id="botLabel">BOTS: READY</span></div>
+<div id="start" class="screen"><div class="box"><h1>THE RAKE</h1><p>WHISPERING PINES · 2D · FAKE MULTIPLAYER</p><button id="startBtn">ENTER THE FOREST</button><div id="msg">Four survivors are waiting in the forest.</div></div></div>
+<div id="death" class="screen"><div class="box"><h1>YOU DIED</h1><p>The survivors are still fighting.</p><button id="respawn">RESPAWN</button></div></div>
 <script>
 const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
 const sheet=new Image();sheet.src='the%20rake%20spritesheet.jpg';
-let sheetReady=false,COLS=4,ROWS=5,cellW=1,cellH=1,frames=[],currentFrame=0,animTimer=0,animIndex=0;const FRAME_MS=95;\nconst spriteCanvas=document.createElement('canvas'),spriteCtx=spriteCanvas.getContext('2d');
-sheet.onload=()=>{sheetReady=true;ROWS=5;COLS=Math.max(1,Math.round(sheet.naturalWidth/sheet.naturalHeight*ROWS));cellW=sheet.naturalWidth/COLS;cellH=sheet.naturalHeight/ROWS;spriteCanvas.width=sheet.naturalWidth;spriteCanvas.height=sheet.naturalHeight;spriteCtx.drawImage(sheet,0,0);const img=spriteCtx.getImageData(0,0,spriteCanvas.width,spriteCanvas.height),d=img.data;for(let y=0;y<spriteCanvas.height;y++)for(let x=0;x<spriteCanvas.width;x++){const i=(y*spriteCanvas.width+x)*4,r=d[i],g=d[i+1],b=d[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b);if(max<70&&max-min<28||r<45&&g<45&&b<45)d[i+3]=0;else if(max<105&&max-min<22)d[i+3]=Math.max(0,Math.floor((max-35)/70*255))}spriteCtx.putImageData(img,0,0);frames=[];for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)frames.push({c,r});setFrame(0)};
-const player={id:null,x:0,z:22,yaw:0,hp:100,alive:true},rake={x:0,z:12,yaw:0,state:'stalking'},keys=Object.create(null),remotes=new Map(),trees=[];
-let socket=null,last=performance.now(),lastSend=0,lastHp=100,worldScale=18;
-function resize(){const d=Math.min(devicePixelRatio||1,2);canvas.width=Math.floor(innerWidth*d);canvas.height=Math.floor(innerHeight*d);canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px';ctx.setTransform(d,0,0,d,0,0)}addEventListener('resize',resize);resize();
+let sheetReady=false,COLS=4,ROWS=5,cellW=1,cellH=1,frames=[],currentFrame=0,animTimer=0,animIndex=0;
+const FRAME_MS=95,worldScale=18,spriteCanvas=document.createElement('canvas'),spriteCtx=spriteCanvas.getContext('2d');
+sheet.onload=()=>{
+  sheetReady=true; ROWS=5; COLS=Math.max(1,Math.round(sheet.naturalWidth/sheet.naturalHeight*ROWS));
+  cellW=sheet.naturalWidth/COLS; cellH=sheet.naturalHeight/ROWS;
+  spriteCanvas.width=sheet.naturalWidth;spriteCanvas.height=sheet.naturalHeight;spriteCtx.drawImage(sheet,0,0);
+  const img=spriteCtx.getImageData(0,0,spriteCanvas.width,spriteCanvas.height),d=img.data;
+  for(let y=0;y<spriteCanvas.height;y++)for(let x=0;x<spriteCanvas.width;x++){
+    const i=(y*spriteCanvas.width+x)*4,r=d[i],g=d[i+1],b=d[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b);
+    if((max<70&&max-min<28)||(r<45&&g<45&&b<45))d[i+3]=0;
+    else if(max<105&&max-min<22)d[i+3]=Math.max(0,Math.floor((max-35)/70*255));
+  }
+  spriteCtx.putImageData(img,0,0);frames=[];
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)frames.push({c,r});
+  setFrame(0);
+};
+
+const player={x:0,z:28,yaw:0,hp:100,alive:true,hitCooldown:0};
+const rake={x:0,z:-30,yaw:0,state:'stalking',stun:0,attackCooldown:0,target:'player'};
+const bots=[
+  {id:1,name:'Maya',x:-28,z:22,hp:100,state:'idle',charge:0,cooldown:0,stunTimer:0,color:'#d6b18d'},
+  {id:2,name:'Alex',x:28,z:18,hp:100,state:'idle',charge:0,cooldown:.5,stunTimer:0,color:'#9db8d2'},
+  {id:3,name:'Sam',x:0,z:58,hp:100,state:'idle',charge:0,cooldown:1,color:'#b9a4c9'}
+];
+const keys=Object.create(null),trees=[],rngSeed=8123;
+let last=performance.now(),started=false,lastHp=100,gameTime=22,shake=0;
+
+function resize(){const d=Math.min(devicePixelRatio||1,2);canvas.width=Math.floor(innerWidth*d);canvas.height=Math.floor(innerHeight*d);canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px';ctx.setTransform(d,0,0,d,0,0)}
+addEventListener('resize',resize);resize();
+
 function setFrame(i){if(!sheetReady)return;currentFrame=Math.max(0,Math.min(frames.length-1,i))}
-function playRows(a,b,reverse=false){const list=[];for(let r=a;r<b;r++)for(let c=0;c<COLS;c++)list.push(r*COLS+c);if(reverse)list.reverse();if(!list.length)return;if(animIndex>=list.length)animIndex=0;setFrame(list[animIndex++]);if(animIndex>=list.length)animIndex=0}
-function playWalkUpDown(){const list=[];for(const r of [0,2])for(let c=0;c<COLS;c++)list.push(r*COLS+c);if(!list.length)return;if(animIndex>=list.length)animIndex=0;setFrame(list[animIndex++]);if(animIndex>=list.length)animIndex=0}
-function updateAnimation(dt){animTimer+=dt*1000;if(animTimer<FRAME_MS)return;animTimer=0;
-if(rake.state==='attack'){playRows(3,5);$('animLabel').textContent='ATTACK'}
-else if(rake.state==='parry'){playRows(4,5);$('animLabel').textContent='PARRY'}
-else if(rake.state==='chase'||rake.state==='stalking'||rake.state==='retreat'){playWalkUpDown();$('animLabel').textContent='WALK UP/DOWN'}
-else{animIndex=0;setFrame(0);$('animLabel').textContent='IDLE'}}
-function drawSprite(x,y,size,flip=false){if(!sheetReady)return;const f=frames[currentFrame],sx=f.c*cellW,sy=f.r*cellH;ctx.save();ctx.translate(x,y);if(flip)ctx.scale(-1,1);const ratio=cellW/cellH,w=size*ratio,h=size;ctx.drawImage(spriteCanvas,sx,sy,cellW,cellH,-w/2,-h/2,w,h);ctx.restore()}
+function playRows(a,b){const list=[];for(let r=a;r<b;r++)for(let c=0;c<COLS;c++)list.push(r*COLS+c);if(!list.length)return;if(animIndex>=list.length)animIndex=0;setFrame(list[animIndex++]);if(animIndex>=list.length)animIndex=0}
+function playWalkUpDown(){const list=[];for(const r of [0,2])for(let c=0;c<COLS;c++)list.push(r*COLS+c);if(animIndex>=list.length)animIndex=0;setFrame(list[animIndex++]);if(animIndex>=list.length)animIndex=0}
+function updateAnimation(dt){
+  animTimer+=dt*1000;if(animTimer<FRAME_MS)return;animTimer=0;
+  if(rake.stun>0){playRows(4,5);$('animLabel').textContent='STUNNED'}
+  else if(rake.state==='attack'){playRows(3,5);$('animLabel').textContent='ATTACK'}
+  else if(rake.state==='chase'||rake.state==='stalking'||rake.state==='retreat'){playWalkUpDown();$('animLabel').textContent='WALK UP/DOWN'}
+  else{animIndex=0;setFrame(0);$('animLabel').textContent='IDLE'}
+}
+function drawSprite(x,y,size,flip=false){
+  if(!sheetReady)return;const f=frames[currentFrame],sx=f.c*cellW,sy=f.r*cellH;
+  ctx.save();ctx.translate(x,y);if(flip)ctx.scale(-1,1);
+  const ratio=cellW/cellH,w=size*ratio,h=size;ctx.drawImage(spriteCanvas,sx,sy,cellW,cellH,-w/2,-h/2,w,h);ctx.restore();
+}
 function worldToScreen(x,z){return{x:innerWidth/2+(x-player.x)*worldScale,y:innerHeight/2+(z-player.z)*worldScale}}
-function drawForest(){ctx.fillStyle='#071008';ctx.fillRect(0,0,innerWidth,innerHeight);const tile=worldScale*3,ox=((-player.x*worldScale)%tile+tile)%tile,oy=((-player.z*worldScale)%tile+tile)%tile;
-for(let x=ox-tile;x<innerWidth+tile;x+=tile)for(let y=oy-tile;y<innerHeight+tile;y+=tile){ctx.fillStyle=((Math.round((x-ox)/tile)+Math.round((y-oy)/tile))&1)?'#0a150d':'#0c180f';ctx.fillRect(x,y,tile,tile)}
-ctx.fillStyle='#24251d';const p=worldToScreen(0,22);ctx.beginPath();ctx.ellipse(p.x,p.y,worldScale*24,worldScale*5,0,0,Math.PI*2);ctx.fill();
-for(const t of trees){const s=worldToScreen(t.x,t.z);if(s.x<-80||s.x>innerWidth+80||s.y<-80||s.y>innerHeight+80)continue;ctx.fillStyle='#25190f';ctx.fillRect(s.x-5,s.y-14,10,30);ctx.fillStyle='#102317';ctx.beginPath();ctx.arc(s.x,s.y-22,27,0,Math.PI*2);ctx.fill();ctx.fillStyle='#0c1c11';ctx.beginPath();ctx.arc(s.x+9,s.y-31,18,0,Math.PI*2);ctx.fill()}}
-function drawPlayer(){const s=worldToScreen(player.x,player.z);ctx.fillStyle='#9eb6d1';ctx.beginPath();ctx.arc(s.x,s.y,9,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#dfeaff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x+Math.sin(player.yaw)*18,s.y+Math.cos(player.yaw)*18);ctx.stroke()}
-function drawRemote(q){const s=worldToScreen(q.x,q.z);ctx.fillStyle='#6684a5';ctx.beginPath();ctx.arc(s.x,s.y,8,0,Math.PI*2);ctx.fill()}
-function drawRake(){const s=worldToScreen(rake.x,rake.z),size=Math.max(70,Math.min(150,worldScale*6));drawSprite(s.x,s.y,size,player.x-rake.x<0);ctx.fillStyle='#0009';ctx.beginPath();ctx.ellipse(s.x,s.y+size*.36,size*.28,size*.08,0,0,Math.PI*2);ctx.fill()}
-function draw(){drawForest();for(const q of remotes.values())drawRemote(q);drawPlayer();drawRake()}
-function forestFromServer(list){trees.length=0;for(const t of list||[])trees.push(t)}
-function connect(){if(socket&&socket.readyState===WebSocket.OPEN)return;const socketUrl='ws://127.0.0.1:8080/ws';socket=new WebSocket(socketUrl);
-socket.onopen=()=>{$('status').textContent='Multiplayer connected';$('msg').textContent='Rake server connected.';$('start').style.display='none'};socket.onclose=()=>{$('status').textContent='Server disconnected';$('msg').textContent='Server offline — run Start The Rake.bat.'};socket.onerror=()=>{$('status').textContent='Server connection error';$('msg').textContent='Server offline — run Start The Rake.bat.'};
-socket.onmessage=event=>{let m;try{m=JSON.parse(event.data)}catch{return}if(m.type==='welcome'){player.id=m.id;forestFromServer(m.trees);$('status').textContent='Multiplayer · 2D Rake ready';return}if(m.type!=='snapshot')return;
-rake.x=m.rake.x;rake.z=m.rake.z;rake.yaw=m.rake.yaw;rake.state=m.rake.state;$('clock').textContent='Time: '+clock(m.clockTime);$('rstate').textContent='Rake: '+m.rake.state;$('pc').textContent='Players: '+m.players.length;
-const seen=new Set;for(const p of m.players){seen.add(p.id);if(p.id===player.id){player.hp=p.hp;if(p.hp<lastHp)$('damage').style.opacity='.7';lastHp=p.hp;continue}let q=remotes.get(p.id);if(!q){q={x:p.x,z:p.z,yaw:p.yaw};remotes.set(p.id,q)}q.x+=(p.x-q.x)*.28;q.z+=(p.z-q.z)*.28;q.yaw=p.yaw||0}
-for(const [id] of remotes)if(!seen.has(id))remotes.delete(id);if(player.hp<=0)die()}}
-function clock(t){return String(Math.floor(t)%24).padStart(2,'0')+':'+String(Math.floor((t%1)*60)).padStart(2,'0')}
-function send(parry=false,respawn=false){if(socket&&socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:'input',x:player.x,z:player.z,yaw:player.yaw,parry,respawn}))}
-function die(){if(!player.alive)return;player.alive=false;$('death').style.display='flex'}
-function respawn(){player.x=0;player.z=22;player.hp=100;player.alive=true;lastHp=100;$('death').style.display='none';send(false,true)}
-function move(dt){let x=0,z=0;if(keys.KeyW)z-=1;if(keys.KeyS)z+=1;if(keys.KeyA)x-=1;if(keys.KeyD)x+=1;const len=Math.hypot(x,z);if(!len)return;x/=len;z/=len;const speed=(keys.ShiftLeft||keys.ShiftRight)?10:6;player.x=Math.max(-110,Math.min(110,player.x+x*speed*dt));player.z=Math.max(-110,Math.min(110,player.z+z*speed*dt))}
-addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
-addEventListener('mousedown',e=>{if(e.button===0&&player.alive&&Math.hypot(rake.x-player.x,rake.z-player.z)<=9)send(true)});
+function dist(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
+function moveToward(a,b,speed,dt){const dx=b.x-a.x,dz=b.z-a.z,l=Math.hypot(dx,dz)||1;a.x+=dx/l*speed*dt;a.z+=dz/l*speed*dt;a.yaw=Math.atan2(dx,dz)}
+function clampWorld(o){o.x=Math.max(-110,Math.min(110,o.x));o.z=Math.max(-110,Math.min(110,o.z))}
+function drawForest(){
+  ctx.fillStyle='#071008';ctx.fillRect(0,0,innerWidth,innerHeight);
+  const tile=worldScale*3,ox=((-player.x*worldScale)%tile+tile)%tile,oy=((-player.z*worldScale)%tile+tile)%tile;
+  for(let x=ox-tile;x<innerWidth+tile;x+=tile)for(let y=oy-tile;y<innerHeight+tile;y+=tile){
+    ctx.fillStyle=((Math.round((x-ox)/tile)+Math.round((y-oy)/tile))&1)?'#0a150d':'#0c180f';ctx.fillRect(x,y,tile,tile)
+  }
+  ctx.fillStyle='#24251d';const p=worldToScreen(0,22);ctx.beginPath();ctx.ellipse(p.x,p.y,worldScale*24,worldScale*5,0,0,Math.PI*2);ctx.fill();
+  for(const t of trees){const s=worldToScreen(t.x,t.z);if(s.x<-80||s.x>innerWidth+80||s.y<-80||s.y>innerHeight+80)continue;
+    ctx.fillStyle='#25190f';ctx.fillRect(s.x-5,s.y-14,10,30);ctx.fillStyle='#102317';ctx.beginPath();ctx.arc(s.x,s.y-22,27,0,Math.PI*2);ctx.fill();ctx.fillStyle='#0c1c11';ctx.beginPath();ctx.arc(s.x+9,s.y-31,18,0,Math.PI*2);ctx.fill();
+  }
+}
+function drawPlayer(){
+  const s=worldToScreen(player.x,player.z);ctx.fillStyle='#9eb6d1';ctx.beginPath();ctx.arc(s.x,s.y,9,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#dfeaff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x+Math.sin(player.yaw)*18,s.y+Math.cos(player.yaw)*18);ctx.stroke();
+}
+function drawBot(b){
+  const s=worldToScreen(b.x,b.z);if(s.x<-60||s.x>innerWidth+60||s.y<-60||s.y>innerHeight+60)return;
+  ctx.save();ctx.globalAlpha=b.hp>0?.95:.25;ctx.fillStyle=b.color;ctx.beginPath();ctx.arc(s.x,s.y,9,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=b.state==='charging'?'#fff':'#ffffff88';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.textAlign='center';ctx.fillText(b.name,s.x,s.y-14);
+  ctx.fillStyle='#111';ctx.fillRect(s.x-14,s.y+12,28,3);ctx.fillStyle='#71d47b';ctx.fillRect(s.x-14,s.y+12,28*Math.max(0,b.hp)/100,3);ctx.restore();
+}
+function drawRake(){
+  const s=worldToScreen(rake.x,rake.z),size=Math.max(70,Math.min(150,worldScale*6));
+  drawSprite(s.x,s.y,size,rake.targetX<rake.x);
+  ctx.fillStyle='#0009';ctx.beginPath();ctx.ellipse(s.x,s.y+size*.36,size*.28,size*.08,0,0,Math.PI*2);ctx.fill();
+  if(rake.stun>0){ctx.fillStyle='#ffe66d';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('STUN',s.x,s.y-size*.58)}
+}
+function draw(){
+  drawForest();for(const b of bots)drawBot(b);drawPlayer();drawRake();
+  if(shake>0){/* visual impact is handled by the red flash and sprite state */}
+}
+function nearestTarget(){
+  const targets=[];
+  if(player.alive)targets.push({type:'player',obj:player});
+  for(const b of bots)if(b.hp>0)targets.push({type:'bot',obj:b});
+  let best=null,bestD=Infinity;
+  for(const t of targets){const d=dist(rake,t.obj);if(d<bestD){bestD=d;best=t}}
+  return best;
+}
+function updateBots(dt){
+  for(const b of bots){
+    if(b.hp<=0)continue;
+    b.cooldown=Math.max(0,b.cooldown-dt);b.stunTimer=Math.max(0,b.stunTimer-dt);
+    if(b.stunTimer>0){b.state='recovering';continue}
+    const d=dist(b,rake);
+    if(d<70&&b.cooldown<=0){
+      b.state='charging';b.charge=.7;
+    }
+    if(b.state==='charging'){
+      b.charge-=dt;moveToward(b,rake,17,dt);clampWorld(b);
+      if(dist(b,rake)<=10){
+        rake.stun=1.25;rake.state='stalking';rake.attackCooldown=Math.max(rake.attackCooldown,.7);
+        b.state='recovering';b.stunTimer=.65;b.cooldown=2.6;shake=.15;
+      }else if(b.charge<=0){
+        b.state='recovering';b.stunTimer=.35;b.cooldown=1.4;
+      }
+    }else{
+      const home={x:b.id===1?-28:b.id===2?28:0,z:b.id===1?22:b.id===2?18:58};
+      if(d<105)moveToward(b,rake,4.5,dt);
+      else moveToward(b,home,2.2,dt);
+      b.state=d<70?'ready':'idle';clampWorld(b);
+    }
+  }
+  const alive=bots.filter(b=>b.hp>0).length+(player.alive?1:0);
+  $('pc').textContent='Survivors: '+alive;
+  $('botLabel').textContent='BOTS: '+bots.filter(b=>b.hp>0).length+' READY';
+}
+function hitTarget(target,damage){
+  if(target.type==='player'){
+    player.hp=Math.max(0,player.hp-damage);
+    $('damage').style.opacity='.75';lastHp=player.hp;if(player.hp<=0)die();
+  }else{
+    target.obj.hp=Math.max(0,target.obj.hp-damage);
+    if(target.obj.hp<=0)target.obj.state='down';
+  }
+}
+function updateRake(dt){
+  if(rake.stun>0){rake.stun=Math.max(0,rake.stun-dt);rake.state='stunned';return}
+  rake.attackCooldown=Math.max(0,rake.attackCooldown-dt);
+  const target=nearestTarget();if(!target){rake.state='idle';return}
+  rake.target=target.type;rake.targetX=target.obj.x;
+  const d=dist(rake,target.obj);
+  if(d<=11){
+    rake.state='attack';
+    if(rake.attackCooldown<=0){hitTarget(target,18);rake.attackCooldown=1.15}
+  }else{
+    rake.state=d<65?'chase':'stalking';
+    moveToward(rake,target.obj,d<65?7.2:5.0,dt);clampWorld(rake);
+  }
+}
+function movePlayer(dt){
+  let x=0,z=0;if(keys.KeyW)z-=1;if(keys.KeyS)z+=1;if(keys.KeyA)x-=1;if(keys.KeyD)x+=1;
+  const len=Math.hypot(x,z);if(!len)return;x/=len;z/=len;
+  const speed=(keys.ShiftLeft||keys.ShiftRight)?10:6;
+  player.x=Math.max(-110,Math.min(110,player.x+x*speed*dt));player.z=Math.max(-110,Math.min(110,player.z+z*speed*dt));
+}
+function parry(){
+  if(!started||!player.alive)return;
+  if(dist(player,rake)<=12&&rake.stun<=0){rake.stun=1.5;rake.state='stunned';rake.attackCooldown=.8;$('animLabel').textContent='PARRY'}
+}
+function die(){if(!player.alive)return;player.alive=false;$('death').style.display='flex';$('msg').textContent=''}
+function resetGame(){
+  player.x=0;player.z=28;player.hp=100;player.alive=true;player.hitCooldown=0;
+  rake.x=0;rake.z=-30;rake.stun=0;rake.attackCooldown=0;rake.state='stalking';
+  bots[0].x=-28;bots[0].z=22;bots[0].hp=100;bots[0].state='idle';bots[0].cooldown=0;
+  bots[1].x=28;bots[1].z=18;bots[1].hp=100;bots[1].state='idle';bots[1].cooldown=.5;
+  bots[2].x=0;bots[2].z=58;bots[2].hp=100;bots[2].state='idle';bots[2].cooldown=1;
+  gameTime=22;lastHp=100;$('death').style.display='none';$('damage').style.opacity='0';
+}
+function startGame(){if(started)return;started=true;$('start').style.display='none';$('status').textContent='Fake Multiplayer · 4 Survivors';$('msg').textContent='';resetGame()}
+function respawn(){resetGame();started=true}
+function generateTrees(){
+  let s=rngSeed;const rand=()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296};
+  for(let i=0;i<80;i++){const x=(rand()*220)-110,z=(rand()*220)-110;if(Math.hypot(x,z-22)<28)continue;trees.push({x,z})}
+}
+addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='Space')parry()});
+addEventListener('keyup',e=>keys[e.code]=false);
+addEventListener('mousedown',e=>{if(e.button===0)parry()});
 addEventListener('mousemove',e=>{if(!player.alive)return;player.yaw=Math.atan2(e.clientX-innerWidth/2,e.clientY-innerHeight/2)});
-$('startBtn').onclick=()=>{if(location.protocol==='https:'){ $('msg').textContent='Opening the local Rake server…'; location.href='http://127.0.0.1:8080/'; return } $('msg').textContent='Connecting to local Rake server…';connect()};$('respawn').onclick=respawn;window.addEventListener('load',()=>{if(location.protocol==='http:'&&['127.0.0.1','localhost'].includes(location.hostname))setTimeout(connect,150)});
-function frame(now){requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.05);last=now;if(player.alive){move(dt);if(now-lastSend>50){send();lastSend=now}}updateAnimation(dt);draw();$('hp').textContent='HP: '+Math.max(0,Math.round(player.hp));const d=Number.parseFloat($('damage').style.opacity||'0');if(d>0)$('damage').style.opacity=String(Math.max(0,d-dt*3))}requestAnimationFrame(frame);
-</script></body></html>
+$('startBtn').onclick=startGame;$('respawn').onclick=respawn;generateTrees();
+
+function frame(now){
+  requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.05);last=now;
+  if(started&&player.alive){
+    movePlayer(dt);updateBots(dt);updateRake(dt);gameTime+=dt*.035;
+    if(gameTime>=24)gameTime-=24;
+  }
+  updateAnimation(dt);draw();
+  $('hp').textContent='HP: '+Math.max(0,Math.round(player.hp));
+  $('clock').textContent='Time: '+String(Math.floor(gameTime)%24).padStart(2,'0')+':'+String(Math.floor((gameTime%1)*60)).padStart(2,'0');
+  $('rstate').textContent='Rake: '+rake.state.toUpperCase();
+  const d=Number.parseFloat($('damage').style.opacity||'0');if(d>0)$('damage').style.opacity=String(Math.max(0,d-dt*3));
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
