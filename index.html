@@ -50,8 +50,8 @@ function drawRemote(q){const s=worldToScreen(q.x,q.z);ctx.fillStyle='#6684a5';ct
 function drawRake(){const s=worldToScreen(rake.x,rake.z),size=Math.max(70,Math.min(150,worldScale*6));drawSprite(s.x,s.y,size,player.x-rake.x<0);ctx.fillStyle='#0009';ctx.beginPath();ctx.ellipse(s.x,s.y+size*.36,size*.28,size*.08,0,0,Math.PI*2);ctx.fill()}
 function draw(){drawForest();for(const q of remotes.values())drawRemote(q);drawPlayer();drawRake()}
 function forestFromServer(list){trees.length=0;for(const t of list||[])trees.push(t)}
-function connect(){const protocol=location.protocol==='https:'?'wss':'ws',host=location.host||'localhost:8080';socket=new WebSocket(protocol+'://'+host+'/ws');
-socket.onopen=()=>{$('status').textContent='Multiplayer connected';$('msg').textContent='Connected.'};socket.onclose=()=>{$('status').textContent='Server disconnected'};socket.onerror=()=>{$('status').textContent='Server connection error'};
+function connect(){if(socket&&socket.readyState===WebSocket.OPEN)return;const socketUrl='ws://127.0.0.1:8080/ws';socket=new WebSocket(socketUrl);
+socket.onopen=()=>{$('status').textContent='Multiplayer connected';$('msg').textContent='Rake server connected.';$('start').style.display='none'};socket.onclose=()=>{$('status').textContent='Server disconnected';$('msg').textContent='Server offline — run Start The Rake.bat.'};socket.onerror=()=>{$('status').textContent='Server connection error';$('msg').textContent='Server offline — run Start The Rake.bat.'};
 socket.onmessage=event=>{let m;try{m=JSON.parse(event.data)}catch{return}if(m.type==='welcome'){player.id=m.id;forestFromServer(m.trees);$('status').textContent='Multiplayer · 2D Rake ready';return}if(m.type!=='snapshot')return;
 rake.x=m.rake.x;rake.z=m.rake.z;rake.yaw=m.rake.yaw;rake.state=m.rake.state;$('clock').textContent='Time: '+clock(m.clockTime);$('rstate').textContent='Rake: '+m.rake.state;$('pc').textContent='Players: '+m.players.length;
 const seen=new Set;for(const p of m.players){seen.add(p.id);if(p.id===player.id){player.hp=p.hp;if(p.hp<lastHp)$('damage').style.opacity='.7';lastHp=p.hp;continue}let q=remotes.get(p.id);if(!q){q={x:p.x,z:p.z,yaw:p.yaw};remotes.set(p.id,q)}q.x+=(p.x-q.x)*.28;q.z+=(p.z-q.z)*.28;q.yaw=p.yaw||0}
@@ -64,6 +64,6 @@ function move(dt){let x=0,z=0;if(keys.KeyW)z-=1;if(keys.KeyS)z+=1;if(keys.KeyA)x
 addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
 addEventListener('mousedown',e=>{if(e.button===0&&player.alive&&Math.hypot(rake.x-player.x,rake.z-player.z)<=9)send(true)});
 addEventListener('mousemove',e=>{if(!player.alive)return;player.yaw=Math.atan2(e.clientX-innerWidth/2,e.clientY-innerHeight/2)});
-$('startBtn').onclick=()=>{$('start').style.display='none';$('msg').textContent='Connecting…';connect()};$('respawn').onclick=respawn;
+$('startBtn').onclick=()=>{$('msg').textContent='Connecting to local Rake server…';connect()};$('respawn').onclick=respawn;window.addEventListener('load',()=>{setTimeout(connect,150)});
 function frame(now){requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.05);last=now;if(player.alive){move(dt);if(now-lastSend>50){send();lastSend=now}}updateAnimation(dt);draw();$('hp').textContent='HP: '+Math.max(0,Math.round(player.hp));const d=Number.parseFloat($('damage').style.opacity||'0');if(d>0)$('damage').style.opacity=String(Math.max(0,d-dt*3))}requestAnimationFrame(frame);
 </script></body></html>
