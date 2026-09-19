@@ -11,36 +11,12 @@
 <script>
 const canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),sheet=new Image();
 sheet.src='https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/the%20rake%20spritesheet.jpg';
-let ready=false,COLS=4,ROWS=5,cw=1,ch=1,frame=0,anim=0;
+let ready=false,COLS=8,ROWS=5,cw=1,ch=1,frame=0,anim=0;
 const spriteFrames=[];
-sheet.onload=()=>{ready=true;detectSpriteGrid();cw=sheet.naturalWidth/COLS;ch=sheet.naturalHeight/ROWS};
+sheet.onload=()=>{ready=true;COLS=8;ROWS=5;cw=sheet.naturalWidth/COLS;ch=sheet.naturalHeight/ROWS;};
 
-// Find the actual frame grid instead of guessing 4x5. The source JPG is 1920x1080,
-// and the animation cells are not necessarily the same grid used by the old build.
-function detectSpriteGrid(){
-  const w=sheet.naturalWidth,h=sheet.naturalHeight;
-  const probe=document.createElement('canvas');probe.width=192;probe.height=108;
-  const p=probe.getContext('2d');p.drawImage(sheet,0,0,192,108);
-  const d=p.getImageData(0,0,192,108).data;
-  const ink=(x,y)=>{const i=(y*192+x)*4;return d[i]>35||d[i+1]>35||d[i+2]>35};
-  let best=null;
-  for(let cols=2;cols<=12;cols++)for(let rows=2;rows<=10;rows++){
-    let cut=0,total=0;
-    for(let y=0;y<108;y++)for(let x=0;x<192;x++){
-      if(!ink(x,y))continue; total++;
-      const gx=x*cols/192,gz=y*rows/108;
-      const nearX=Math.abs(gx-Math.round(gx))<0.018 && Math.round(gx)>0&&Math.round(gx)<cols;
-      const nearY=Math.abs(gz-Math.round(gz))<0.018 && Math.round(gz)>0&&Math.round(gz)<rows;
-      if(nearX||nearY)cut++;
-    }
-    const cellRatio=(w/cols)/(h/rows);
-    const shapePenalty=Math.abs(Math.log(cellRatio/0.75));
-    const score=cut/Math.max(1,total)+shapePenalty*0.015;
-    if(!best||score<best.score)best={cols,rows,score};
-  }
-  COLS=best.cols;ROWS=best.rows;
-}
-
+// The source JPG is a 5-row animation sheet. Keep the real 5-row layout and
+// use 8 columns so each animation cell stays intact instead of dynamically guessing.
 // The JPG stays untouched. We crop one exact cell at a time and use screen
 // compositing so pure black from the JPG contributes no visible pixels.
 // This avoids destructive pixel-erasing on the compressed JPG.
@@ -65,9 +41,17 @@ function updateBots(dt){for(const b of bots){if(b.hp<=0)continue;b.cool=Math.max
 function updateRake(dt){if(rake.stun>0){rake.stun-=dt;rake.state='stunned';return}rake.attack=Math.max(0,rake.attack-dt);const alive=bots.filter(b=>b.hp>0);rake.target=alive.length?alive.reduce((a,b)=>dist(rake,b)<dist(rake,a)?b:a):player;const t=rake.target,d=dist(rake,t);if(d<11){rake.state='attack';if(rake.attack<=0){t.hp=Math.max(0,t.hp-18);rake.attack=1.15}}else{rake.state=d<65?'chase':'stalking';pathTimer-=dt;if(pathTimer<=0){path=astar(cell(rake),cell(t));pathTimer=.28}const next=path[1]||{x:t.x,z:t.z};toward(rake,next,d<65?7.2:5,dt);clamp(rake)}}
 function drawSprite(x,y,size){
   if(!ready)return;
-  const idx=frame%(COLS*ROWS),sx=(idx%COLS)*cw,sy=Math.floor(idx/COLS)*ch;
+  // 5 rows: top 3 = walking, bottom 2 = attack, final row = parry.
+  // Keep the Rake on a real cell; never let an auto-grid crop make it disappear.
+  let local;
+  if(rake.stun>0) local=32+Math.floor(frame%8);
+  else if(rake.state==='attack') local=24+Math.floor(frame%8);
+  else local=Math.floor(frame%24);
+  const idx=Math.max(0,Math.min(39,local));
+  const sx=(idx%COLS)*cw,sy=Math.floor(idx/COLS)*ch;
   ctx.save();
   ctx.globalCompositeOperation='screen';
+  ctx.filter='brightness(1.35) contrast(1.2)';
   ctx.drawImage(sheet,sx,sy,cw,ch,x-size/2,y-size/2,size*1.05,size);
   ctx.restore();
 }
