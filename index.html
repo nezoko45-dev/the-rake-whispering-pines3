@@ -41,21 +41,16 @@ sheet.onload=()=>{
   cellW=sheet.naturalWidth/COLS; cellH=sheet.naturalHeight/ROWS;
   spriteCanvas.width=sheet.naturalWidth;spriteCanvas.height=sheet.naturalHeight;spriteCtx.drawImage(sheet,0,0);
   const img=spriteCtx.getImageData(0,0,spriteCanvas.width,spriteCanvas.height),d=img.data;
-  // Remove only dark pixels connected to the outside edge of each cell.
-  // This keeps the Rake's own dark/black body from being erased.
+  // Remove ONLY the dark ground/shadow underneath each Rake.
+  // The Rake's dark body is preserved.
   for(let row=0;row<ROWS;row++)for(let col=0;col<COLS;col++){
     const x0=Math.floor(col*cellW),y0=Math.floor(row*cellH),x1=Math.min(spriteCanvas.width,Math.ceil((col+1)*cellW)),y1=Math.min(spriteCanvas.height,Math.ceil((row+1)*cellH));
-    const w=x1-x0,h=y1-y0,seen=new Uint8Array(w*h),queue=[];
-    const isBg=(x,y)=>{
-      const i=(y*spriteCanvas.width+x)*4,r=d[i],g=d[i+1],b=d[i+2],mx=Math.max(r,g,b);
-      return mx<92 && Math.max(r,g,b)-Math.min(r,g,b)<30;
-    };
-    const push=(x,y)=>{if(x<x0||x>=x1||y<y0||y>=y1)return;const k=(y-y0)*w+(x-x0);if(seen[k])return;seen[k]=1;if(isBg(x,y))queue.push([x,y])};
-    for(let x=x0;x<x1;x++){push(x,y0);push(x,y1-1)}
-    for(let y=y0;y<y1;y++){push(x0,y);push(x1-1,y)}
-    for(let n=0;n<queue.length;n++){
-      const [x,y]=queue[n],i=(y*spriteCanvas.width+x)*4;
-      d[i+3]=0;push(x+1,y);push(x-1,y);push(x,y+1);push(x,y-1);
+    const w=x1-x0,h=y1-y0;
+    for(let y=Math.floor(y0+h*.78);y<y1;y++){
+      for(let x=x0;x<x1;x++){
+        const i=(y*spriteCanvas.width+x)*4,r=d[i],g=d[i+1],b=d[i+2];
+        if(Math.max(r,g,b)<75 && Math.max(r,g,b)-Math.min(r,g,b)<22)d[i+3]=0;
+      }
     }
   }
   spriteCtx.putImageData(img,0,0);frames=[];
@@ -119,7 +114,8 @@ function drawBot(b){
 }
 function drawRake(){
   const s=worldToScreen(rake.x,rake.z),size=Math.max(90,Math.min(170,worldScale*7));
-  if(sheetReady)drawSprite(s.x,s.y,size,rake.targetX<rake.x);\n  else { ctx.save();ctx.translate(s.x,s.y);ctx.fillStyle='#151515';ctx.beginPath();ctx.ellipse(0,0,28,55,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ddd';ctx.beginPath();ctx.arc(-9,-10,4,0,Math.PI*2);ctx.arc(9,-10,4,0,Math.PI*2);ctx.fill();ctx.restore(); }
+  if(sheetReady)drawSprite(s.x,s.y,size,rake.targetX<rake.x);
+  else { ctx.save();ctx.translate(s.x,s.y);ctx.fillStyle='#151515';ctx.beginPath();ctx.ellipse(0,0,30,58,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ddd';ctx.beginPath();ctx.arc(-9,-10,4,0,Math.PI*2);ctx.arc(9,-10,4,0,Math.PI*2);ctx.fill();ctx.restore(); }
   ctx.fillStyle='#0009';ctx.beginPath();ctx.ellipse(s.x,s.y+size*.36,size*.28,size*.08,0,0,Math.PI*2);ctx.fill();
   if(rake.stun>0){ctx.fillStyle='#ffe66d';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('STUN',s.x,s.y-size*.58)}
 }
