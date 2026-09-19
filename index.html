@@ -64,7 +64,7 @@ sheet.onload=()=>{
 };
 
 const player={x:0,z:28,yaw:0,hp:100,alive:true,hitCooldown:0};
-const rake={x:0,z:-30,yaw:0,state:'stalking',stun:0,attackCooldown:0,target:'player'};
+const rake={x:0,z:-5,yaw:0,state:'stalking',stun:0,attackCooldown:0,target:'player'};
 const bots=[
   {id:1,name:'Maya',x:-28,z:22,hp:100,state:'idle',charge:0,cooldown:0,stunTimer:0,color:'#d6b18d'},
   {id:2,name:'Alex',x:28,z:18,hp:100,state:'idle',charge:0,cooldown:.5,stunTimer:0,color:'#9db8d2'},
@@ -199,7 +199,7 @@ function parry(){
 function die(){if(!player.alive)return;player.alive=false;$('death').style.display='flex';$('msg').textContent=''}
 function resetGame(){
   player.x=0;player.z=28;player.hp=100;player.alive=true;player.hitCooldown=0;
-  rake.x=0;rake.z=-30;rake.stun=0;rake.attackCooldown=0;rake.state='stalking';
+  rake.x=0;rake.z=-5;rake.stun=0;rake.attackCooldown=0;rake.state='stalking';
   bots[0].x=-28;bots[0].z=22;bots[0].hp=100;bots[0].state='idle';bots[0].cooldown=0;
   bots[1].x=28;bots[1].z=18;bots[1].hp=100;bots[1].state='idle';bots[1].cooldown=.5;
   bots[2].x=0;bots[2].z=58;bots[2].hp=100;bots[2].state='idle';bots[2].cooldown=1;
