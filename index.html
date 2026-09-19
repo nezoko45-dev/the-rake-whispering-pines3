@@ -39,20 +39,40 @@ let path=[],pathTimer=0;
 function updatePlayer(dt){let x=(keys.KeyD?1:0)-(keys.KeyA?1:0),z=(keys.KeyS?1:0)-(keys.KeyW?1:0),l=Math.hypot(x,z);if(!l)return;const s=(keys.ShiftLeft||keys.ShiftRight)?10:6;player.x+=x/l*s*dt;player.z+=z/l*s*dt;clamp(player)}
 function updateBots(dt){for(const b of bots){if(b.hp<=0)continue;b.cool=Math.max(0,b.cool-dt);const d=dist(b,rake);if(d<70&&b.cool<=0)b.charge=.75;if(b.charge>0){b.charge-=dt;toward(b,rake,17,dt);if(dist(b,rake)<=10){rake.stun=1.25;rake.state='stunned';b.charge=0;b.cool=2.8}}else{const home={x:b.name==='Maya'?-28:b.name==='Alex'?28:0,z:b.name==='Maya'?22:b.name==='Alex'?18:58};toward(b,d<105?rake:home,d<105?4.5:2.2,dt)}clamp(b)}}
 function updateRake(dt){if(rake.stun>0){rake.stun-=dt;rake.state='stunned';return}rake.attack=Math.max(0,rake.attack-dt);const alive=bots.filter(b=>b.hp>0);rake.target=alive.length?alive.reduce((a,b)=>dist(rake,b)<dist(rake,a)?b:a):player;const t=rake.target,d=dist(rake,t);if(d<11){rake.state='attack';if(rake.attack<=0){t.hp=Math.max(0,t.hp-18);rake.attack=1.15}}else{rake.state=d<65?'chase':'stalking';pathTimer-=dt;if(pathTimer<=0){path=astar(cell(rake),cell(t));pathTimer=.28}const next=path[1]||{x:t.x,z:t.z};toward(rake,next,d<65?7.2:5,dt);clamp(rake)}}
+const spriteCanvas=document.createElement('canvas'),spriteCtx=spriteCanvas.getContext('2d');
 function drawSprite(x,y,size){
   if(!ready)return;
-  // 5 rows: top 3 = walking, bottom 2 = attack, final row = parry.
-  // Keep the Rake on a real cell; never let an auto-grid crop make it disappear.
   let local;
   if(rake.stun>0) local=32+Math.floor(frame%8);
   else if(rake.state==='attack') local=24+Math.floor(frame%8);
   else local=Math.floor(frame%24);
   const idx=Math.max(0,Math.min(39,local));
   const sx=(idx%COLS)*cw,sy=Math.floor(idx/COLS)*ch;
+
+  // Render the exact JPG cell to an offscreen canvas. Do NOT use screen blending:
+  // screen blending was making the entire Rake semi-transparent.
+  spriteCanvas.width=Math.ceil(cw);
+  spriteCanvas.height=Math.ceil(ch);
+  spriteCtx.clearRect(0,0,spriteCanvas.width,spriteCanvas.height);
+  spriteCtx.globalCompositeOperation='source-over';
+  spriteCtx.drawImage(sheet,sx,sy,cw,ch,0,0,spriteCanvas.width,spriteCanvas.height);
+
+  // Remove only near-black JPG background pixels. Dark gray/red parts of the
+  // Rake remain opaque instead of getting washed out by the old screen blend.
+  const img=spriteCtx.getImageData(0,0,spriteCanvas.width,spriteCanvas.height);
+  const p=img.data;
+  for(let i=0;i<p.length;i+=4){
+    const r=p[i],g=p[i+1],b=p[i+2];
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    if(max<24 && (max-min)<12) p[i+3]=0;
+    else p[i+3]=255;
+  }
+  spriteCtx.putImageData(img,0,0);
+
   ctx.save();
-  ctx.globalCompositeOperation='screen';
-  ctx.filter='brightness(1.35) contrast(1.2)';
-  ctx.drawImage(sheet,sx,sy,cw,ch,x-size/2,y-size/2,size*1.05,size);
+  ctx.globalCompositeOperation='source-over';
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(spriteCanvas,x-size/2,y-size/2,size*1.05,size);
   ctx.restore();
 }
 function draw(){ctx.fillStyle='#08110a';ctx.fillRect(0,0,innerWidth,innerHeight);const ox=innerWidth/2-player.x*scale,oy=innerHeight/2-player.z*scale;for(let x=-110;x<=110;x+=20)for(let z=-110;z<=110;z+=20){ctx.fillStyle=((x+z)/20%2?'#0b170d':'#0e1b10');ctx.fillRect(ox+x*scale,oy+z*scale,20*scale,20*scale)}for(const b of bots){const x=innerWidth/2+(b.x-player.x)*scale,y=innerHeight/2+(b.z-player.z)*scale;ctx.fillStyle='#b9cce0';ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.textAlign='center';ctx.fillText(b.name,x,y-14)}const px=innerWidth/2,py=innerHeight/2;ctx.fillStyle='#8eb1d0';ctx.beginPath();ctx.arc(px,py,9,0,7);ctx.fill();const rx=innerWidth/2+(rake.x-player.x)*scale,ry=innerHeight/2+(rake.z-player.z)*scale;drawSprite(rx,ry,150);if(rake.stun>0){ctx.fillStyle='#ffe66d';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('STUN',rx,ry-85)}}
