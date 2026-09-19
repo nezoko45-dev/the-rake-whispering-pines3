@@ -13,7 +13,33 @@ const canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),sheet=n
 sheet.src='https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/the%20rake%20spritesheet.jpg';
 let ready=false,COLS=4,ROWS=5,cw=1,ch=1,frame=0,anim=0;
 const spriteFrames=[];
-sheet.onload=()=>{ready=true;COLS=Math.max(1,Math.round(sheet.naturalWidth/sheet.naturalHeight*ROWS));cw=sheet.naturalWidth/COLS;ch=sheet.naturalHeight/ROWS};
+sheet.onload=()=>{ready=true;detectSpriteGrid();cw=sheet.naturalWidth/COLS;ch=sheet.naturalHeight/ROWS};
+
+// Find the actual frame grid instead of guessing 4x5. The source JPG is 1920x1080,
+// and the animation cells are not necessarily the same grid used by the old build.
+function detectSpriteGrid(){
+  const w=sheet.naturalWidth,h=sheet.naturalHeight;
+  const probe=document.createElement('canvas');probe.width=192;probe.height=108;
+  const p=probe.getContext('2d');p.drawImage(sheet,0,0,192,108);
+  const d=p.getImageData(0,0,192,108).data;
+  const ink=(x,y)=>{const i=(y*192+x)*4;return d[i]>35||d[i+1]>35||d[i+2]>35};
+  let best=null;
+  for(let cols=2;cols<=12;cols++)for(let rows=2;rows<=10;rows++){
+    let cut=0,total=0;
+    for(let y=0;y<108;y++)for(let x=0;x<192;x++){
+      if(!ink(x,y))continue; total++;
+      const gx=x*cols/192,gz=y*rows/108;
+      const nearX=Math.abs(gx-Math.round(gx))<0.018 && Math.round(gx)>0&&Math.round(gx)<cols;
+      const nearY=Math.abs(gz-Math.round(gz))<0.018 && Math.round(gz)>0&&Math.round(gz)<rows;
+      if(nearX||nearY)cut++;
+    }
+    const cellRatio=(w/cols)/(h/rows);
+    const shapePenalty=Math.abs(Math.log(cellRatio/0.75));
+    const score=cut/Math.max(1,total)+shapePenalty*0.015;
+    if(!best||score<best.score)best={cols,rows,score};
+  }
+  COLS=best.cols;ROWS=best.rows;
+}
 
 // The JPG stays untouched. We crop one exact cell at a time and use screen
 // compositing so pure black from the JPG contributes no visible pixels.
