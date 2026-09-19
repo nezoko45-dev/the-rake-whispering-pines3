@@ -1,536 +1,68 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Rake — Whispering Pines</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Rake — Whispering Pines 2D</title>
 <style>
-*{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050706;color:#fff;font-family:Arial,Helvetica,sans-serif}
-canvas{display:block}
-#hud{position:fixed;z-index:5;left:18px;top:16px;pointer-events:none;text-shadow:0 2px 8px #000}
-.title{font-size:25px;font-weight:900;letter-spacing:5px}.line{margin-top:5px}.dim{opacity:.72}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050706;color:#fff;font-family:Arial,Helvetica,sans-serif}body{touch-action:none}
+canvas#game{display:block;width:100%;height:100%;image-rendering:auto}
+#hud{position:fixed;z-index:5;left:18px;top:16px;pointer-events:none;text-shadow:0 2px 8px #000}.title{font-size:25px;font-weight:900;letter-spacing:5px}.line{margin-top:5px}.dim{opacity:.72}
 #cross{position:fixed;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);font-size:20px;opacity:.8;pointer-events:none}
 #vignette{position:fixed;z-index:3;inset:0;pointer-events:none;background:radial-gradient(circle,transparent 35%,rgba(0,0,0,.55) 100%)}
-.screen{position:fixed;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at center,#142018 0,#030504 72%)}
-#death{display:none}
+.screen{position:fixed;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at center,#142018 0,#030504 72%)}#death{display:none}
 .box{width:min(540px,90vw);text-align:center}.box h1{font-size:48px;letter-spacing:10px;margin:0 0 8px}.box p{opacity:.7}
-button{border:0;border-radius:5px;padding:14px 32px;background:#e9ece8;color:#080a08;font-weight:900;cursor:pointer;letter-spacing:1px}
-button:hover{background:#fff}
-#msg{margin-top:14px;min-height:18px;opacity:.75}
-#loading{position:fixed;z-index:25;inset:0;display:none;align-items:center;justify-content:center;background:#030504}
-.loadbox{width:min(460px,82vw);text-align:center}.bar{height:5px;background:#222;margin-top:16px;border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:#ddd;transition:width .15s}
-#damage{position:fixed;inset:0;z-index:4;pointer-events:none;background:rgba(180,0,0,.35);opacity:0}
-#debug{position:fixed;right:14px;bottom:12px;z-index:8;font:12px monospace;color:#bfc8bf;opacity:.65;pointer-events:none}
+button{border:0;border-radius:5px;padding:14px 32px;background:#e9ece8;color:#080a08;font-weight:900;cursor:pointer;letter-spacing:1px}button:hover{background:#fff}
+#msg{margin-top:14px;min-height:18px;opacity:.75}#damage{position:fixed;inset:0;z-index:4;pointer-events:none;background:rgba(180,0,0,.35);opacity:0}
+#controls{position:fixed;right:18px;bottom:16px;z-index:6;display:flex;gap:8px;pointer-events:none}#controls span{padding:7px 10px;border:1px solid #ffffff22;background:#050706aa;border-radius:5px;font:12px monospace;color:#ddd}
 </style>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js"
-  }
-}
-</script>
 </head>
 <body>
-<div id="start" class="screen">
-  <div class="box">
-    <h1>THE RAKE</h1>
-    <p>WHISPERING PINES</p>
-    <button id="startBtn">ENTER THE FOREST</button>
-    <div id="msg">Start TheRakeServer.exe first.</div>
-  </div>
-</div>
-
-<div id="loading">
-  <div class="loadbox">
-    <b>LOADING THE RAKE</b>
-    <div class="bar"><i id="loadbar"></i></div>
-    <div id="loadtext" class="dim">Preparing forest…</div>
-  </div>
-</div>
-
-<div id="death" class="screen">
-  <div class="box">
-    <h1>YOU DIED</h1>
-    <p>The forest went quiet.</p>
-    <button id="respawn">RESPAWN</button>
-  </div>
-</div>
-
-<div id="hud">
-  <div class="title">THE RAKE</div>
-  <div class="line" id="status">Offline</div>
-  <div class="line" id="hp">HP: 100</div>
-  <div class="line" id="clock">Time: --:--</div>
-  <div class="line" id="rstate">Rake: --</div>
-  <div class="line" id="pc">Players: 0</div>
-  <div class="line dim">WASD · Mouse · Shift sprint · Left click parry</div>
-</div>
-<div id="cross">+</div>
-<div id="vignette"></div>
-<div id="damage"></div>
-<div id="debug"></div>
-
-<script type="module">
-import * as THREE from 'three';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/loaders/GLTFLoader.js';
-
-const $ = id => document.getElementById(id);
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x050706);
-scene.fog = new THREE.FogExp2(0x08100b, 0.012);
-
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 500);
-camera.rotation.order = 'YXZ';
-
-const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
-renderer.setSize(innerWidth, innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-document.body.appendChild(renderer.domElement);
-
-scene.add(new THREE.HemisphereLight(0x9eb0bd, 0x15100b, 0.8));
-const moon = new THREE.DirectionalLight(0xaec5e8, 1.15);
-moon.position.set(-45,80,30);
-moon.castShadow = true;
-moon.shadow.mapSize.set(1024,1024);
-moon.shadow.camera.left = -90;
-moon.shadow.camera.right = 90;
-moon.shadow.camera.top = 90;
-moon.shadow.camera.bottom = -90;
-scene.add(moon);
-
-const world = new THREE.Group();
-scene.add(world);
-
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(300,300),
-  new THREE.MeshStandardMaterial({color:0x182219,roughness:1})
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-world.add(ground);
-
-const path = new THREE.Mesh(
-  new THREE.CircleGeometry(18,32),
-  new THREE.MeshStandardMaterial({color:0x24241d,roughness:1})
-);
-path.rotation.x = -Math.PI / 2;
-path.scale.set(1.8,1,0.5);
-path.position.set(0,0.008,22);
-world.add(path);
-
-const player = {id:null,x:0,z:22,yaw:0,pitch:0,hp:100,alive:true};
-const rake = {x:0,z:12,yaw:0,state:'stalking'};
-
-const keys = Object.create(null);
-const remotes = new Map();
-let socket = null;
-let trees = [];
-let rakeRoot = null;
-let rakeVisual = null;
-let mixer = null;
-let actions = {};
-let activeAction = null;
-let rakeRenderX = 0;
-let rakeRenderZ = 0;
-let last = performance.now();
-let lastSend = 0;
-let lastHp = 100;
-
-function forest(){
-  const trunkMat = new THREE.MeshStandardMaterial({color:0x241a12,roughness:1});
-  const leafMat = new THREE.MeshStandardMaterial({color:0x102015,roughness:1});
-  for(const t of trees){
-    const g = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.18,.34,5.5,7),trunkMat);
-    trunk.position.y = 2.75;
-    trunk.castShadow = trunk.receiveShadow = true;
-    const crown = new THREE.Mesh(new THREE.ConeGeometry(2.4,6,8),leafMat);
-    crown.position.y = 7;
-    crown.castShadow = true;
-    g.add(trunk,crown);
-    g.position.set(t.x,0,t.z);
-    world.add(g);
-  }
-}
-
-function mapAnimations(clips){
-  const out = {};
-  for(const clip of clips || []){
-    const n = (clip.name || '').toLowerCase().replace(/[ _-]/g,'');
-    if(n.includes('attack')) out.attack = clip;
-    else if(n.includes('parry') || n.includes('block')) out.parry = clip;
-    else if(n.includes('run') || n.includes('chase') || n.includes('sprint')) out.chase = clip;
-    else if(n.includes('walk')) out.walk = clip;
-    else if(n.includes('idle')) out.idle = clip;
-  }
-  return out;
-}
-
-function play(name){
-  const next = actions[name] || actions.idle || actions.walk || actions.chase;
-  if(!next || next === activeAction) return;
-  if(activeAction) activeAction.fadeOut(0.12);
-  next.reset().fadeIn(0.12).play();
-  activeAction = next;
-}
-
-function normalize(model){
-  model.updateMatrixWorld(true);
-  let box = new THREE.Box3().setFromObject(model);
-  const size = box.getSize(new THREE.Vector3());
-  if(size.y > 0) model.scale.multiplyScalar(6 / size.y);
-  model.updateMatrixWorld(true);
-  box = new THREE.Box3().setFromObject(model);
-  const center = box.getCenter(new THREE.Vector3());
-  model.position.x -= center.x;
-  model.position.z -= center.z;
-  model.position.y -= box.min.y;
-  model.updateMatrixWorld(true);
-}
-
-function prepareModel(model){
-  model.traverse(o=>{
-    o.visible = true;
-    if(!o.isMesh) return;
-    o.castShadow = true;
-    o.receiveShadow = true;
-    o.frustumCulled = false;
-    const mats = Array.isArray(o.material) ? o.material : [o.material];
-    for(const mat of mats){
-      if(!mat) continue;
-      mat.transparent = false;
-      mat.opacity = 1;
-      mat.depthWrite = true;
-      mat.depthTest = true;
-      mat.needsUpdate = true;
-    }
-  });
-}
-
-function installAnimations(animations, root){
-  mixer = new THREE.AnimationMixer(root);
-  const mapped = mapAnimations(animations);
-  actions = {};
-  for(const [name,clip] of Object.entries(mapped)){
-    const action = mixer.clipAction(clip);
-    if(name === 'attack' || name === 'parry'){
-      action.setLoop(THREE.LoopOnce,1);
-      action.clampWhenFinished = true;
-    } else {
-      action.setLoop(THREE.LoopRepeat,Infinity);
-    }
-    actions[name] = action;
-  }
-  play(actions.idle ? 'idle' : actions.walk ? 'walk' : actions.chase ? 'chase' : 'attack');
-}
-
-function loadRake(){
-  const loader = new GLTFLoader();
-  const url = '/assets/rake/rake.glb?build=' + Date.now();
-
-  $('loadtext').textContent = 'Downloading Rake model…';
-  $('loadbar').style.width = '10%';
-
-  loader.load(
-    url,
-    gltf => {
-      $('loadbar').style.width = '90%';
-      $('loadtext').textContent = 'Finalizing Rake…';
-
-      const anchor = new THREE.Group();
-      const visual = gltf.scene;
-
-      prepareModel(visual);
-      normalize(visual);
-
-      anchor.add(visual);
-      anchor.position.set(rake.x,0.02,rake.z);
-      anchor.rotation.y = rake.yaw;
-
-      rakeRoot = anchor;
-      rakeVisual = visual;
-      rakeRenderX = rake.x;
-      rakeRenderZ = rake.z;
-      scene.add(anchor);
-
-      installAnimations(gltf.animations, visual);
-
-      console.log('Rake loaded:', gltf.animations.map(a=>a.name));
-      $('loadbar').style.width = '100%';
-      $('loadtext').textContent = 'Rake ready.';
-      $('status').textContent = 'Multiplayer · Rake ready';
-
-      setTimeout(() => $('loading').style.display = 'none', 250);
-    },
-    progress => {
-      if(progress.total > 0){
-        const pct = 10 + Math.min(78, progress.loaded / progress.total * 78);
-        $('loadbar').style.width = pct + '%';
-        $('loadtext').textContent = 'Downloading Rake model… ' + Math.round(progress.loaded/progress.total*100) + '%';
-      }
-    },
-    err => {
-      console.error('Rake load failed:', err);
-      $('loadtext').textContent = 'Rake failed to load. Check assets/rake/rake.glb.';
-      $('status').textContent = 'Rake model failed';
-    }
-  );
-}
-
-function remote(p){
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(.42,1.15,4,8),
-    new THREE.MeshStandardMaterial({color:0x607b9e,roughness:.9})
-  );
-  body.position.y = 1;
-  body.castShadow = true;
-  g.add(body);
-  scene.add(g);
-  return {mesh:g,target:new THREE.Vector3(p.x,0,p.z),yaw:p.yaw || 0};
-}
-
-function connect(){
-  const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  const host = location.host || 'localhost:8080';
-  socket = new WebSocket(protocol + '://' + host + '/ws');
-
-  socket.onopen = () => $('status').textContent = 'Multiplayer connected';
-
-  socket.onclose = () => $('status').textContent = 'Server disconnected';
-  socket.onerror = () => $('status').textContent = 'Server connection error';
-
-  socket.onmessage = event => {
-    let m;
-    try { m = JSON.parse(event.data); } catch { return; }
-
-    if(m.type === 'welcome'){
-      player.id = m.id;
-      trees = m.trees || [];
-      forest();
-      loadRake();
-      $('status').textContent = 'Multiplayer · loading Rake';
-      return;
-    }
-
-    if(m.type !== 'snapshot') return;
-
-    rake.x = m.rake.x;
-    rake.z = m.rake.z;
-    rake.yaw = m.rake.yaw;
-    rake.state = m.rake.state;
-
-    $('clock').textContent = 'Time: ' + clock(m.clockTime);
-    $('rstate').textContent = 'Rake: ' + m.rake.state;
-    $('pc').textContent = 'Players: ' + m.players.length;
-
-    const seen = new Set();
-
-    for(const p of m.players){
-      seen.add(p.id);
-
-      if(p.id === player.id){
-        player.hp = p.hp;
-        if(p.hp < lastHp) $('damage').style.opacity = '.7';
-        lastHp = p.hp;
-        continue;
-      }
-
-      let q = remotes.get(p.id);
-      if(!q){
-        q = remote(p);
-        remotes.set(p.id,q);
-      }
-      q.target.set(p.x,0,p.z);
-      q.yaw = p.yaw || 0;
-    }
-
-    for(const [id,q] of remotes){
-      if(!seen.has(id)){
-        scene.remove(q.mesh);
-        remotes.delete(id);
-      }
-    }
-
-    if(player.hp <= 0) die();
-  };
-}
-
-function clock(t){
-  return String(Math.floor(t)%24).padStart(2,'0') + ':' +
-         String(Math.floor((t%1)*60)).padStart(2,'0');
-}
-
-function send(parry=false,respawn=false){
-  if(socket && socket.readyState === WebSocket.OPEN){
-    socket.send(JSON.stringify({
-      type:'input',
-      x:player.x,
-      z:player.z,
-      yaw:player.yaw,
-      parry,
-      respawn
-    }));
-  }
-}
-
-function die(){
-  if(!player.alive) return;
-  player.alive = false;
-  $('death').style.display = 'flex';
-  if(document.pointerLockElement === renderer.domElement) document.exitPointerLock();
-}
-
-function respawn(){
-  player.x = 0;
-  player.z = 22;
-  player.hp = 100;
-  player.alive = true;
-  lastHp = 100;
-  $('death').style.display = 'none';
-  send(false,true);
-  renderer.domElement.requestPointerLock();
-}
-
-function move(dt){
-  let x = 0, z = 0;
-  if(keys.KeyW) z += 1;
-  if(keys.KeyS) z -= 1;
-  if(keys.KeyA) x -= 1;
-  if(keys.KeyD) x += 1;
-
-  const len = Math.hypot(x,z);
-  if(!len) return;
-
-  x /= len;
-  z /= len;
-
-  const s = Math.sin(player.yaw);
-  const c = Math.cos(player.yaw);
-  const wx = s*z + c*x;
-  const wz = -c*z + s*x;
-  const speed = (keys.ShiftLeft || keys.ShiftRight) ? 10 : 6;
-
-  player.x = THREE.MathUtils.clamp(player.x + wx*speed*dt,-108,108);
-  player.z = THREE.MathUtils.clamp(player.z + wz*speed*dt,-108,108);
-}
-
-function updateRake(dt){
-  if(!rakeRoot) return;
-
-  // Smooth the networked position so the Rake does not teleport/sliding-snap
-  // between 50 ms server snapshots.
-  const follow = 1 - Math.exp(-dt * 14);
-  rakeRenderX = THREE.MathUtils.lerp(rakeRenderX, rake.x, follow);
-  rakeRenderZ = THREE.MathUtils.lerp(rakeRenderZ, rake.z, follow);
-
-  rakeRoot.position.x = rakeRenderX;
-  rakeRoot.position.z = rakeRenderZ;
-  rakeRoot.rotation.y = rake.yaw + Math.PI;
-
-  if(mixer){
-    const moving = rake.state === 'stalking' || rake.state === 'chase' || rake.state === 'retreat';
-    const desired =
-      rake.state === 'attack' ? 'attack' :
-      rake.state === 'parry' ? 'parry' :
-      moving && actions.walk ? 'walk' :
-      actions.idle ? 'idle' : 'walk';
-
-    play(desired);
-
-    // The GLB only contains a walking locomotion clip, so speed the
-    // animation up during the 19-stud chase instead of letting the body
-    // slide while the server moves it.
-    if(activeAction === actions.walk){
-      activeAction.timeScale = rake.state === 'chase' ? 2.15 : 1.0;
-    }
-    mixer.update(dt);
-  }
-
-  // Keep the animated feet on the forest floor.
-  if(rakeVisual){
-    rakeRoot.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(rakeVisual);
-    if(Number.isFinite(box.min.y)){
-      rakeRoot.position.y = THREE.MathUtils.clamp(-box.min.y,-0.02,0.12);
-    }
-  }
-}
-
-function frame(now){
-  requestAnimationFrame(frame);
-  const dt = Math.min((now-last)/1000,0.05);
-  last = now;
-
-  if(player.alive){
-    move(dt);
-    camera.position.set(player.x,1.72,player.z);
-    camera.rotation.y = player.yaw;
-    camera.rotation.x = player.pitch;
-
-    if(now-lastSend > 50){
-      send();
-      lastSend = now;
-    }
-  }
-
-  for(const q of remotes.values()){
-    q.mesh.position.lerp(q.target,Math.min(1,dt*12));
-    q.mesh.rotation.y = q.yaw;
-  }
-
-  updateRake(dt);
-
-  $('hp').textContent = 'HP: ' + Math.max(0,Math.round(player.hp));
-
-  const damage = Number.parseFloat($('damage').style.opacity || '0');
-  if(damage > 0) $('damage').style.opacity = String(Math.max(0,damage-dt*3));
-
-  renderer.render(scene,camera);
-}
-
-addEventListener('resize',()=>{
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
-});
-
-addEventListener('keydown',e=>keys[e.code]=true);
-addEventListener('keyup',e=>keys[e.code]=false);
-
-addEventListener('mousemove',e=>{
-  if(document.pointerLockElement !== renderer.domElement || !player.alive) return;
-  player.yaw -= e.movementX * 0.0022;
-  player.pitch = THREE.MathUtils.clamp(player.pitch - e.movementY*0.0022,-1.35,1.35);
-});
-
-addEventListener('mousedown',e=>{
-  if(e.button === 0 && player.alive &&
-     Math.hypot(rake.x-player.x,rake.z-player.z) <= 9) send(true);
-});
-
-$('startBtn').onclick = ()=>{
-  $('start').style.display = 'none';
-  $('loading').style.display = 'flex';
-  $('msg').textContent = 'Connecting…';
-  connect();
-  renderer.domElement.requestPointerLock();
-};
-
-$('respawn').onclick = respawn;
-
-renderer.domElement.addEventListener('click',()=>{
-  if(player.alive && document.pointerLockElement !== renderer.domElement)
-    renderer.domElement.requestPointerLock();
-});
-
-requestAnimationFrame(frame);
-</script>
-</body>
-</html>
+<canvas id="game"></canvas>
+<div id="hud"><div class="title">THE RAKE</div><div class="line" id="status">Offline</div><div class="line" id="hp">HP: 100</div><div class="line" id="clock">Time: --:--</div><div class="line" id="rstate">Rake: --</div><div class="line" id="pc">Players: 0</div><div class="line dim">WASD · Mouse · Shift sprint · Left click parry</div></div>
+<div id="cross">+</div><div id="vignette"></div><div id="damage"></div>
+<div id="controls"><span>2D SPRITE MODE</span><span id="animLabel">IDLE</span></div>
+<div id="start" class="screen"><div class="box"><h1>THE RAKE</h1><p>WHISPERING PINES · 2D</p><button id="startBtn">ENTER THE FOREST</button><div id="msg">Start TheRakeServer.exe first.</div></div></div>
+<div id="death" class="screen"><div class="box"><h1>YOU DIED</h1><p>The forest went quiet.</p><button id="respawn">RESPAWN</button></div></div>
+<script>
+const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
+const sheet=new Image();sheet.src='the%20rake%20spritesheet.jpg';
+let sheetReady=false,COLS=4,ROWS=5,cellW=1,cellH=1,frames=[],currentFrame=0,animTimer=0,animIndex=0;const FRAME_MS=95;
+sheet.onload=()=>{sheetReady=true;ROWS=5;COLS=Math.max(1,Math.round(sheet.naturalWidth/sheet.naturalHeight*ROWS));cellW=sheet.naturalWidth/COLS;cellH=sheet.naturalHeight/ROWS;frames=[];for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)frames.push({c,r});setFrame(0)};
+const player={id:null,x:0,z:22,yaw:0,hp:100,alive:true},rake={x:0,z:12,yaw:0,state:'stalking'},keys=Object.create(null),remotes=new Map(),trees=[];
+let socket=null,last=performance.now(),lastSend=0,lastHp=100,worldScale=18;
+function resize(){const d=Math.min(devicePixelRatio||1,2);canvas.width=Math.floor(innerWidth*d);canvas.height=Math.floor(innerHeight*d);canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px';ctx.setTransform(d,0,0,d,0,0)}addEventListener('resize',resize);resize();
+function setFrame(i){if(!sheetReady)return;currentFrame=Math.max(0,Math.min(frames.length-1,i))}
+function playRows(a,b){const list=[];for(let r=a;r<b;r++)for(let c=0;c<COLS;c++)list.push(r*COLS+c);if(!list.length)return;if(animIndex>=list.length)animIndex=0;setFrame(list[animIndex++]);if(animIndex>=list.length)animIndex=0}
+function updateAnimation(dt){animTimer+=dt*1000;if(animTimer<FRAME_MS)return;animTimer=0;
+if(rake.state==='attack'){playRows(3,5);$('animLabel').textContent='ATTACK'}
+else if(rake.state==='parry'){playRows(4,5);$('animLabel').textContent='PARRY'}
+else if(rake.state==='chase'||rake.state==='stalking'||rake.state==='retreat'){playRows(0,3);$('animLabel').textContent='WALK'}
+else{animIndex=0;setFrame(0);$('animLabel').textContent='IDLE'}}
+function drawSprite(x,y,size,flip=false){if(!sheetReady)return;const f=frames[currentFrame],sx=f.c*cellW,sy=f.r*cellH;ctx.save();ctx.translate(x,y);if(flip)ctx.scale(-1,1);const ratio=cellW/cellH,w=size*ratio,h=size;ctx.drawImage(sheet,sx,sy,cellW,cellH,-w/2,-h/2,w,h);ctx.restore()}
+function worldToScreen(x,z){return{x:innerWidth/2+(x-player.x)*worldScale,y:innerHeight/2+(z-player.z)*worldScale}}
+function drawForest(){ctx.fillStyle='#071008';ctx.fillRect(0,0,innerWidth,innerHeight);const tile=worldScale*3,ox=((-player.x*worldScale)%tile+tile)%tile,oy=((-player.z*worldScale)%tile+tile)%tile;
+for(let x=ox-tile;x<innerWidth+tile;x+=tile)for(let y=oy-tile;y<innerHeight+tile;y+=tile){ctx.fillStyle=((Math.round((x-ox)/tile)+Math.round((y-oy)/tile))&1)?'#0a150d':'#0c180f';ctx.fillRect(x,y,tile,tile)}
+ctx.fillStyle='#24251d';const p=worldToScreen(0,22);ctx.beginPath();ctx.ellipse(p.x,p.y,worldScale*24,worldScale*5,0,0,Math.PI*2);ctx.fill();
+for(const t of trees){const s=worldToScreen(t.x,t.z);if(s.x<-80||s.x>innerWidth+80||s.y<-80||s.y>innerHeight+80)continue;ctx.fillStyle='#25190f';ctx.fillRect(s.x-5,s.y-14,10,30);ctx.fillStyle='#102317';ctx.beginPath();ctx.arc(s.x,s.y-22,27,0,Math.PI*2);ctx.fill();ctx.fillStyle='#0c1c11';ctx.beginPath();ctx.arc(s.x+9,s.y-31,18,0,Math.PI*2);ctx.fill()}}
+function drawPlayer(){const s=worldToScreen(player.x,player.z);ctx.fillStyle='#9eb6d1';ctx.beginPath();ctx.arc(s.x,s.y,9,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#dfeaff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x+Math.sin(player.yaw)*18,s.y+Math.cos(player.yaw)*18);ctx.stroke()}
+function drawRemote(q){const s=worldToScreen(q.x,q.z);ctx.fillStyle='#6684a5';ctx.beginPath();ctx.arc(s.x,s.y,8,0,Math.PI*2);ctx.fill()}
+function drawRake(){const s=worldToScreen(rake.x,rake.z),size=Math.max(70,Math.min(150,worldScale*6));drawSprite(s.x,s.y,size,player.x-rake.x<0);ctx.fillStyle='#0009';ctx.beginPath();ctx.ellipse(s.x,s.y+size*.36,size*.28,size*.08,0,0,Math.PI*2);ctx.fill()}
+function draw(){drawForest();for(const q of remotes.values())drawRemote(q);drawPlayer();drawRake()}
+function forestFromServer(list){trees.length=0;for(const t of list||[])trees.push(t)}
+function connect(){const protocol=location.protocol==='https:'?'wss':'ws',host=location.host||'localhost:8080';socket=new WebSocket(protocol+'://'+host+'/ws');
+socket.onopen=()=>{$('status').textContent='Multiplayer connected';$('msg').textContent='Connected.'};socket.onclose=()=>{$('status').textContent='Server disconnected'};socket.onerror=()=>{$('status').textContent='Server connection error'};
+socket.onmessage=event=>{let m;try{m=JSON.parse(event.data)}catch{return}if(m.type==='welcome'){player.id=m.id;forestFromServer(m.trees);$('status').textContent='Multiplayer · 2D Rake ready';return}if(m.type!=='snapshot')return;
+rake.x=m.rake.x;rake.z=m.rake.z;rake.yaw=m.rake.yaw;rake.state=m.rake.state;$('clock').textContent='Time: '+clock(m.clockTime);$('rstate').textContent='Rake: '+m.rake.state;$('pc').textContent='Players: '+m.players.length;
+const seen=new Set;for(const p of m.players){seen.add(p.id);if(p.id===player.id){player.hp=p.hp;if(p.hp<lastHp)$('damage').style.opacity='.7';lastHp=p.hp;continue}let q=remotes.get(p.id);if(!q){q={x:p.x,z:p.z,yaw:p.yaw};remotes.set(p.id,q)}q.x+=(p.x-q.x)*.28;q.z+=(p.z-q.z)*.28;q.yaw=p.yaw||0}
+for(const [id] of remotes)if(!seen.has(id))remotes.delete(id);if(player.hp<=0)die()}}
+function clock(t){return String(Math.floor(t)%24).padStart(2,'0')+':'+String(Math.floor((t%1)*60)).padStart(2,'0')}
+function send(parry=false,respawn=false){if(socket&&socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:'input',x:player.x,z:player.z,yaw:player.yaw,parry,respawn}))}
+function die(){if(!player.alive)return;player.alive=false;$('death').style.display='flex'}
+function respawn(){player.x=0;player.z=22;player.hp=100;player.alive=true;lastHp=100;$('death').style.display='none';send(false,true)}
+function move(dt){let x=0,z=0;if(keys.KeyW)z-=1;if(keys.KeyS)z+=1;if(keys.KeyA)x-=1;if(keys.KeyD)x+=1;const len=Math.hypot(x,z);if(!len)return;x/=len;z/=len;const speed=(keys.ShiftLeft||keys.ShiftRight)?10:6;player.x=Math.max(-110,Math.min(110,player.x+x*speed*dt));player.z=Math.max(-110,Math.min(110,player.z+z*speed*dt))}
+addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
+addEventListener('mousedown',e=>{if(e.button===0&&player.alive&&Math.hypot(rake.x-player.x,rake.z-player.z)<=9)send(true)});
+addEventListener('mousemove',e=>{if(!player.alive)return;player.yaw=Math.atan2(e.clientX-innerWidth/2,e.clientY-innerHeight/2)});
+$('startBtn').onclick=()=>{$('start').style.display='none';$('msg').textContent='Connecting…';connect()};$('respawn').onclick=respawn;
+function frame(now){requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.05);last=now;if(player.alive){move(dt);if(now-lastSend>50){send();lastSend=now}}updateAnimation(dt);draw();$('hp').textContent='HP: '+Math.max(0,Math.round(player.hp));const d=Number.parseFloat($('damage').style.opacity||'0');if(d>0)$('damage').style.opacity=String(Math.max(0,d-dt*3))}requestAnimationFrame(frame);
+</script></body></html>
