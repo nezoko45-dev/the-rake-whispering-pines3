@@ -28,6 +28,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path TheRakeServerPackage | Out-Null
           Copy-Item TheRakeServer.exe TheRakeServerPackage\
           Copy-Item index.html TheRakeServerPackage\
+          Copy-Item "Start The Rake.bat" TheRakeServerPackage\
           if (Test-Path assets) {
             Copy-Item assets TheRakeServerPackage\assets -Recurse
           }
