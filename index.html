@@ -12,15 +12,35 @@
 const canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),sheet=new Image();
 sheet.src='https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/the%20rake%20spritesheet.jpg';
 let ready=false,COLS=4,ROWS=5,cw=1,ch=1,frame=0,anim=0;
-const clean=document.createElement('canvas'),cc=clean.getContext('2d');
-sheet.onload=()=>{ready=true;COLS=Math.max(1,Math.round(sheet.naturalWidth/sheet.naturalHeight*ROWS));cw=sheet.naturalWidth/COLS;ch=sheet.naturalHeight/ROWS;clean.width=sheet.naturalWidth;clean.height=sheet.naturalHeight;cc.drawImage(sheet,0,0)};
+const spriteFrames=[];
+sheet.onload=()=>{ready=true;COLS=Math.max(1,Math.round(sheet.naturalWidth/sheet.naturalHeight*ROWS));cw=sheet.naturalWidth/COLS;ch=sheet.naturalHeight/ROWS;buildCleanFrames()};
+
+// Remove only near-black pixels connected to the outside edges of each sprite cell.
+// This removes the black area/shadow underneath the Rake without cutting out isolated
+// dark pixels that belong to the Rake itself.
+function buildCleanFrames(){
+  spriteFrames.length=0;
+  for(let row=0;row<ROWS;row++)for(let col=0;col<COLS;col++){
+    const w=Math.max(1,Math.floor(cw)),h=Math.max(1,Math.floor(ch));
+    const c=document.createElement('canvas');c.width=w;c.height=h;
+    const x=c.getContext('2d');x.drawImage(sheet,col*cw,row*ch,cw,ch,0,0,w,h);
+    const im=x.getImageData(0,0,w,h),d=im.data,seen=new Uint8Array(w*h),q=[];
+    const dark=(i)=>d[i*4]<55&&d[i*4+1]<55&&d[i*4+2]<55;
+    const push=(px,py)=>{const n=py*w+px;if(!seen[n]&&dark(n)){seen[n]=1;q.push(n)}};
+    for(let px=0;px<w;px++){push(px,0);push(px,h-1)}
+    for(let py=0;py<h;py++){push(0,py);push(w-1,py)}
+    for(let head=0;head<q.length;head++){
+      const n=q[head],px=n%w,py=Math.floor(n/w);
+      d[n*4+3]=0;
+      if(px>0)push(px-1,py);if(px<w-1)push(px+1,py);if(py>0)push(px,py-1);if(py<h-1)push(px,py+1);
+    }
+    x.putImageData(im,0,0);
+    spriteFrames.push(c);
+  }
+}
 const player={x:0,z:34,hp:100,alive:true};
 const rake={x:0,z:-18,state:'stalking',stun:0,attack:0,target:null};
-const bots=[
-{x:-28,z:22,hp:100,charge:0,cool:0,name:'Maya'},
-{x:28,z:18,hp:100,charge:0,cool:.8,name:'Alex'},
-{x:0,z:58,hp:100,charge:0,cool:1.4,name:'Sam'}
-];
+const bots=[{x:-28,z:22,hp:100,charge:0,cool:0,name:'Maya'},{x:28,z:18,hp:100,charge:0,cool:.8,name:'Alex'},{x:0,z:58,hp:100,charge:0,cool:1.4,name:'Sam'}];
 const keys={};let started=false,last=performance.now(),scale=18;
 addEventListener('resize',resize);resize();
 function resize(){const d=Math.min(devicePixelRatio||1,2);canvas.width=innerWidth*d;canvas.height=innerHeight*d;ctx.setTransform(d,0,0,d,0,0)}
@@ -29,63 +49,16 @@ document.getElementById('startBtn').onclick=()=>{started=true;document.getElemen
 function dist(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
 function toward(a,b,s,dt){const dx=b.x-a.x,dz=b.z-a.z,l=Math.hypot(dx,dz)||1;a.x+=dx/l*s*dt;a.z+=dz/l*s*dt}
 function clamp(o){o.x=Math.max(-110,Math.min(110,o.x));o.z=Math.max(-110,Math.min(110,o.z))}
-const GRID=22,CELL=10;
+const CELL=10;
 function blocked(gx,gz){return Math.abs(gx)>10||Math.abs(gz)>10}
 function cell(p){return{x:Math.max(-10,Math.min(10,Math.round(p.x/CELL))),z:Math.max(-10,Math.min(10,Math.round(p.z/CELL)))}}
-function astar(start,goal){
- const sk=start.x+','+start.z,gk=goal.x+','+goal.z;if(sk===gk)return [start];
- const open=[{x:start.x,z:start.z,g:0,f:Math.abs(start.x-goal.x)+Math.abs(start.z-goal.z),p:null}],seen=new Map();
- while(open.length){
-  open.sort((a,b)=>a.f-b.f);const n=open.shift(),nk=n.x+','+n.z;
-  if(seen.has(nk)&&seen.get(nk)<=n.g)continue;seen.set(nk,n.g);
-  if(n.x===goal.x&&n.z===goal.z){const path=[];let q=n;while(q){path.unshift({x:q.x*CELL,z:q.z*CELL});q=q.p}return path}
-  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
-   const x=n.x+dx,z=n.z+dz;if(blocked(x,z))continue;const g=n.g+(dx&&dz?1.414:1),h=Math.abs(x-goal.x)+Math.abs(z-goal.z),k=x+','+z;
-   if(!seen.has(k)||g<seen.get(k))open.push({x,z,g,f:g+h,p:n});
-  }
- }
- return [start];
-}
+function astar(start,goal){const sk=start.x+','+start.z,gk=goal.x+','+goal.z;if(sk===gk)return[start];const open=[{x:start.x,z:start.z,g:0,f:Math.abs(start.x-goal.x)+Math.abs(start.z-goal.z),p:null}],seen=new Map();while(open.length){open.sort((a,b)=>a.f-b.f);const n=open.shift(),nk=n.x+','+n.z;if(seen.has(nk)&&seen.get(nk)<=n.g)continue;seen.set(nk,n.g);if(n.x===goal.x&&n.z===goal.z){const path=[];let q=n;while(q){path.unshift({x:q.x*CELL,z:q.z*CELL});q=q.p}return path}for(const[dx,dz]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){const x=n.x+dx,z=n.z+dz;if(blocked(x,z))continue;const g=n.g+(dx&&dz?1.414:1),h=Math.abs(x-goal.x)+Math.abs(z-goal.z),k=x+','+z;if(!seen.has(k)||g<seen.get(k))open.push({x,z,g,f:g+h,p:n})}}return[start]}
 let path=[],pathTimer=0;
 function updatePlayer(dt){let x=(keys.KeyD?1:0)-(keys.KeyA?1:0),z=(keys.KeyS?1:0)-(keys.KeyW?1:0),l=Math.hypot(x,z);if(!l)return;const s=(keys.ShiftLeft||keys.ShiftRight)?10:6;player.x+=x/l*s*dt;player.z+=z/l*s*dt;clamp(player)}
-function updateBots(dt){
- for(const b of bots){if(b.hp<=0)continue;b.cool=Math.max(0,b.cool-dt);const d=dist(b,rake);
-  if(d<70&&b.cool<=0)b.charge=.75;
-  if(b.charge>0){b.charge-=dt;toward(b,rake,17,dt);if(dist(b,rake)<=10){rake.stun=1.25;rake.state='stunned';b.charge=0;b.cool=2.8}}
-  else {const home={x:b.name==='Maya'?-28:b.name==='Alex'?28:0,z:b.name==='Maya'?22:b.name==='Alex'?18:58};toward(b,d<105?rake:home,d<105?4.5:2.2,dt)}
-  clamp(b)
- }
-}
-function updateRake(dt){
- if(rake.stun>0){rake.stun-=dt;rake.state='stunned';return}
- rake.attack=Math.max(0,rake.attack-dt);
- const alive=bots.filter(b=>b.hp>0);if(!alive.length){rake.target=player}else{rake.target=alive.reduce((a,b)=>dist(rake,b)<dist(rake,a)?b:a)}
- const t=rake.target;if(!t)return;
- const d=dist(rake,t);
- if(d<11){rake.state='attack';if(rake.attack<=0){t.hp=Math.max(0,t.hp-18);rake.attack=1.15}}
- else {
-  rake.state=d<65?'chase':'stalking';
-  pathTimer-=dt;
-  if(pathTimer<=0){path=astar(cell(rake),cell(t));pathTimer=.28}
-  const next=path[1]||{x:t.x,z:t.z};toward(rake,next,d<65?7.2:5,dt);clamp(rake)
- }
-}
-function drawSprite(x,y,size){
- if(!ready)return;
- const idx=frame%(COLS*ROWS),sx=(idx%COLS)*cw,sy=Math.floor(idx/COLS)*ch;
- // Draw exactly one spritesheet cell at a time; never show neighboring frames.
- ctx.drawImage(sheet,sx,sy,cw,ch,x-size/2,y-size/2,size*1.05,size);
-}
-function draw(){
- ctx.fillStyle='#08110a';ctx.fillRect(0,0,innerWidth,innerHeight);
- const ox=innerWidth/2-player.x*scale,oy=innerHeight/2-player.z*scale;
- for(let x=-110;x<=110;x+=20)for(let z=-110;z<=110;z+=20){ctx.fillStyle=((x+z)/20%2?'#0b170d':'#0e1b10');ctx.fillRect(ox+x*scale,oy+z*scale,20*scale,20*scale)}
- for(const b of bots){const x=innerWidth/2+(b.x-player.x)*scale,y=innerHeight/2+(b.z-player.z)*scale;ctx.fillStyle='#b9cce0';ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.textAlign='center';ctx.fillText(b.name,x,y-14)}
- const px=innerWidth/2,py=innerHeight/2;ctx.fillStyle='#8eb1d0';ctx.beginPath();ctx.arc(px,py,9,0,7);ctx.fill();
- const rx=innerWidth/2+(rake.x-player.x)*scale,ry=innerHeight/2+(rake.z-player.z)*scale;
- drawSprite(rx,ry,150);
- if(rake.stun>0){ctx.fillStyle='#ffe66d';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('STUN',rx,ry-85)}
-}
+function updateBots(dt){for(const b of bots){if(b.hp<=0)continue;b.cool=Math.max(0,b.cool-dt);const d=dist(b,rake);if(d<70&&b.cool<=0)b.charge=.75;if(b.charge>0){b.charge-=dt;toward(b,rake,17,dt);if(dist(b,rake)<=10){rake.stun=1.25;rake.state='stunned';b.charge=0;b.cool=2.8}}else{const home={x:b.name==='Maya'?-28:b.name==='Alex'?28:0,z:b.name==='Maya'?22:b.name==='Alex'?18:58};toward(b,d<105?rake:home,d<105?4.5:2.2,dt)}clamp(b)}}
+function updateRake(dt){if(rake.stun>0){rake.stun-=dt;rake.state='stunned';return}rake.attack=Math.max(0,rake.attack-dt);const alive=bots.filter(b=>b.hp>0);rake.target=alive.length?alive.reduce((a,b)=>dist(rake,b)<dist(rake,a)?b:a):player;const t=rake.target,d=dist(rake,t);if(d<11){rake.state='attack';if(rake.attack<=0){t.hp=Math.max(0,t.hp-18);rake.attack=1.15}}else{rake.state=d<65?'chase':'stalking';pathTimer-=dt;if(pathTimer<=0){path=astar(cell(rake),cell(t));pathTimer=.28}const next=path[1]||{x:t.x,z:t.z};toward(rake,next,d<65?7.2:5,dt);clamp(rake)}}
+function drawSprite(x,y,size){if(!ready||!spriteFrames.length)return;const idx=frame%spriteFrames.length;ctx.drawImage(spriteFrames[idx],x-size/2,y-size/2,size*1.05,size)}
+function draw(){ctx.fillStyle='#08110a';ctx.fillRect(0,0,innerWidth,innerHeight);const ox=innerWidth/2-player.x*scale,oy=innerHeight/2-player.z*scale;for(let x=-110;x<=110;x+=20)for(let z=-110;z<=110;z+=20){ctx.fillStyle=((x+z)/20%2?'#0b170d':'#0e1b10');ctx.fillRect(ox+x*scale,oy+z*scale,20*scale,20*scale)}for(const b of bots){const x=innerWidth/2+(b.x-player.x)*scale,y=innerHeight/2+(b.z-player.z)*scale;ctx.fillStyle='#b9cce0';ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.textAlign='center';ctx.fillText(b.name,x,y-14)}const px=innerWidth/2,py=innerHeight/2;ctx.fillStyle='#8eb1d0';ctx.beginPath();ctx.arc(px,py,9,0,7);ctx.fill();const rx=innerWidth/2+(rake.x-player.x)*scale,ry=innerHeight/2+(rake.z-player.z)*scale;drawSprite(rx,ry,150);if(rake.stun>0){ctx.fillStyle='#ffe66d';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('STUN',rx,ry-85)}}
 function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000);last=now;if(started&&player.alive){updatePlayer(dt);updateBots(dt);updateRake(dt);anim+=dt;if(anim>.1){anim=0;frame++}}draw();document.getElementById('hp').textContent='HP: '+player.hp;document.getElementById('state').textContent='Rake: '+rake.state.toUpperCase();document.getElementById('bots').textContent='Bots: '+bots.filter(b=>b.hp>0).length}
 requestAnimationFrame(loop);
 </script></body></html>
