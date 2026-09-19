@@ -1,225 +1,90 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Rake — Whispering Pines 2D</title>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Rake — Whispering Pines</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050706;color:#fff;font-family:Arial,Helvetica,sans-serif}body{touch-action:none}
-canvas#game{display:block;width:100%;height:100%;image-rendering:auto}
-#hud{position:fixed;z-index:5;left:18px;top:16px;pointer-events:none;text-shadow:0 2px 8px #000}.title{font-size:25px;font-weight:900;letter-spacing:5px}.line{margin-top:5px}.dim{opacity:.72}
-#cross{position:fixed;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);font-size:20px;opacity:.8;pointer-events:none}
-#vignette{position:fixed;z-index:3;inset:0;pointer-events:none;background:radial-gradient(circle,transparent 35%,rgba(0,0,0,.55) 100%)}
-.screen{position:fixed;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at center,#142018 0,#030504 72%)}#death{display:none}
-.box{width:min(540px,90vw);text-align:center}.box h1{font-size:48px;letter-spacing:10px;margin:0 0 8px}.box p{opacity:.7}
-button{border:0;border-radius:5px;padding:14px 32px;background:#e9ece8;color:#080a08;font-weight:900;cursor:pointer;letter-spacing:1px}button:hover{background:#fff}
-#msg{margin-top:14px;min-height:18px;opacity:.75}#damage{position:fixed;inset:0;z-index:4;pointer-events:none;background:rgba(180,0,0,.35);opacity:0}
-#controls{position:fixed;right:18px;bottom:16px;z-index:6;display:flex;gap:8px;pointer-events:none;flex-wrap:wrap;justify-content:flex-end}#controls span{padding:7px 10px;border:1px solid #ffffff22;background:#050706aa;border-radius:5px;font:12px monospace;color:#ddd}
-</style>
-</head>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050806;color:#fff;font-family:Arial}canvas{display:block;width:100%;height:100%;image-rendering:auto}.hud{position:fixed;top:15px;left:18px;z-index:5;text-shadow:0 2px 6px #000}.title{font-weight:900;font-size:25px;letter-spacing:5px}.line{margin-top:5px}.screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#030504}.box{text-align:center}.box h1{font-size:48px;letter-spacing:8px}.btn{padding:14px 28px;border:0;border-radius:5px;font-weight:900;cursor:pointer}.controls{position:fixed;right:15px;bottom:15px;z-index:5;font:12px monospace;background:#0009;padding:8px}</style></head>
 <body>
 <canvas id="game"></canvas>
-<div id="hud">
-  <div class="title">THE RAKE</div>
-  <div class="line" id="status">Fake Multiplayer · 4 Survivors</div>
-  <div class="line" id="hp">HP: 100</div>
-  <div class="line" id="clock">Time: 22:00</div>
-  <div class="line" id="rstate">Rake: STALKING</div>
-  <div class="line" id="pc">Survivors: 4</div>
-  <div class="line dim">WASD · Mouse · Shift sprint</div>
-</div>
-<div id="cross">+</div><div id="vignette"></div><div id="damage"></div>
-<div id="controls"><span>2D SPRITE MODE</span><span id="animLabel">IDLE</span><span id="botLabel">BOTS: READY</span></div>
-<div id="start" class="screen"><div class="box"><h1>THE RAKE</h1><p>WHISPERING PINES · 2D · FAKE MULTIPLAYER</p><button id="startBtn">ENTER THE FOREST</button><div id="msg">Four survivors are waiting in the forest.</div></div></div>
-<div id="death" class="screen"><div class="box"><h1>YOU DIED</h1><p>The survivors are still fighting.</p><button id="respawn">RESPAWN</button></div></div>
+<div class="hud"><div class="title">THE RAKE</div><div class="line" id="state">Rake: STALKING</div><div class="line" id="hp">HP: 100</div><div class="line" id="bots">Bots: 3</div></div>
+<div class="controls">WASD · Shift sprint · Bots charge/stun Rake</div>
+<div id="start" class="screen"><div class="box"><h1>THE RAKE</h1><p>WHISPERING PINES · A* BOT CHASE</p><button class="btn" id="startBtn">ENTER THE FOREST</button></div></div>
 <script>
-const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
-const sheet=new Image();sheet.src='https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/the%20rake%20spritesheet.jpg';
-let sheetReady=false,COLS=4,ROWS=5,cellW=1,cellH=1,frames=[],currentFrame=0,animTimer=0,animIndex=0;
-const FRAME_MS=95,worldScale=18,spriteCanvas=document.createElement('canvas'),spriteCtx=spriteCanvas.getContext('2d');
-sheet.onload=()=>{
-  sheetReady=true; ROWS=5; COLS=Math.max(1,Math.round(sheet.naturalWidth/sheet.naturalHeight*ROWS));
-  cellW=sheet.naturalWidth/COLS; cellH=sheet.naturalHeight/ROWS;
-  spriteCanvas.width=sheet.naturalWidth;spriteCanvas.height=sheet.naturalHeight;spriteCtx.drawImage(sheet,0,0);
-  const img=spriteCtx.getImageData(0,0,spriteCanvas.width,spriteCanvas.height),d=img.data;
-  // Keep the JPG artwork intact. Only make pure black pixels at the bottom edge transparent.
-  for(let row=0;row<ROWS;row++)for(let col=0;col<COLS;col++){
-    const x0=Math.floor(col*cellW),y0=Math.floor(row*cellH),x1=Math.min(spriteCanvas.width,Math.ceil((col+1)*cellW)),y1=Math.min(spriteCanvas.height,Math.ceil((row+1)*cellH));
-    const floorY=Math.floor(y0+(y1-y0)*.92);
-    for(let y=floorY;y<y1;y++)for(let x=x0;x<x1;x++){
-      const i=(y*spriteCanvas.width+x)*4;
-      if(d[i]<8&&d[i+1]<8&&d[i+2]<8)d[i+3]=0;
-    }
-  }
-  spriteCtx.putImageData(img,0,0);frames=[];
-  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)frames.push({c,r});
-  setFrame(0);
-};
-
-const player={x:0,z:28,yaw:0,hp:100,alive:true,hitCooldown:0};
-const rake={x:0,z:8,yaw:0,state:'stalking',stun:0,attackCooldown:0,target:'player',targetX:0};
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),sheet=new Image();
+sheet.src='https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/the%20rake%20spritesheet.jpg';
+let ready=false,COLS=4,ROWS=5,cw=1,ch=1,frame=0,anim=0;
+const clean=document.createElement('canvas'),cc=clean.getContext('2d');
+sheet.onload=()=>{ready=true;COLS=Math.max(1,Math.round(sheet.naturalWidth/sheet.naturalHeight*ROWS));cw=sheet.naturalWidth/COLS;ch=sheet.naturalHeight/ROWS;clean.width=sheet.naturalWidth;clean.height=sheet.naturalHeight;cc.drawImage(sheet,0,0)};
+const player={x:0,z:34,hp:100,alive:true};
+const rake={x:0,z:-18,state:'stalking',stun:0,attack:0,target:null};
 const bots=[
-  {id:1,name:'Maya',x:-28,z:22,hp:100,state:'idle',charge:0,cooldown:0,stunTimer:0,color:'#d6b18d'},
-  {id:2,name:'Alex',x:28,z:18,hp:100,state:'idle',charge:0,cooldown:.5,stunTimer:0,color:'#9db8d2'},
-  {id:3,name:'Sam',x:0,z:58,hp:100,state:'idle',charge:0,cooldown:1,color:'#b9a4c9'}
+{x:-28,z:22,hp:100,charge:0,cool:0,name:'Maya'},
+{x:28,z:18,hp:100,charge:0,cool:.8,name:'Alex'},
+{x:0,z:58,hp:100,charge:0,cool:1.4,name:'Sam'}
 ];
-const keys=Object.create(null),trees=[],rngSeed=8123;
-let last=performance.now(),started=false,lastHp=100,gameTime=22,shake=0;
-
-function resize(){const d=Math.min(devicePixelRatio||1,2);canvas.width=Math.floor(innerWidth*d);canvas.height=Math.floor(innerHeight*d);canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px';ctx.setTransform(d,0,0,d,0,0)}
+const keys={};let started=false,last=performance.now(),scale=18;
 addEventListener('resize',resize);resize();
-
-function setFrame(i){if(!sheetReady)return;currentFrame=Math.max(0,Math.min(frames.length-1,i))}
-function playRows(a,b){const list=[];for(let r=a;r<b;r++)for(let c=0;c<COLS;c++)list.push(r*COLS+c);if(!list.length)return;if(animIndex>=list.length)animIndex=0;setFrame(list[animIndex++]);if(animIndex>=list.length)animIndex=0}
-function playWalkUpDown(){const list=[];for(const r of [0,2])for(let c=0;c<COLS;c++)list.push(r*COLS+c);if(animIndex>=list.length)animIndex=0;setFrame(list[animIndex++]);if(animIndex>=list.length)animIndex=0}
-function updateAnimation(dt){
-  animTimer+=dt*1000;if(animTimer<FRAME_MS)return;animTimer=0;
-  if(rake.stun>0){playRows(4,5);$('animLabel').textContent='STUNNED'}
-  else if(rake.state==='attack'){playRows(3,5);$('animLabel').textContent='ATTACK'}
-  else if(rake.state==='chase'||rake.state==='stalking'||rake.state==='retreat'){playWalkUpDown();$('animLabel').textContent='WALK UP/DOWN'}
-  else{animIndex=0;setFrame(0);$('animLabel').textContent='IDLE'}
-}
-function drawSprite(x,y,size,flip=false){
-  if(!sheetReady)return;const f=frames[currentFrame],sx=f.c*cellW,sy=f.r*cellH;
-  ctx.save();ctx.translate(x,y);if(flip)ctx.scale(-1,1);
-  const ratio=cellW/cellH,w=size*ratio,h=size;ctx.drawImage(spriteCanvas,sx,sy,cellW,cellH,-w/2,-h/2,w,h);ctx.restore();
-}
-function worldToScreen(x,z){return{x:innerWidth/2+(x-player.x)*worldScale,y:innerHeight/2+(z-player.z)*worldScale}}
+function resize(){const d=Math.min(devicePixelRatio||1,2);canvas.width=innerWidth*d;canvas.height=innerHeight*d;ctx.setTransform(d,0,0,d,0,0)}
+addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
+document.getElementById('startBtn').onclick=()=>{started=true;document.getElementById('start').style.display='none'};
 function dist(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
-function moveToward(a,b,speed,dt){const dx=b.x-a.x,dz=b.z-a.z,l=Math.hypot(dx,dz)||1;a.x+=dx/l*speed*dt;a.z+=dz/l*speed*dt;a.yaw=Math.atan2(dx,dz)}
-function clampWorld(o){o.x=Math.max(-110,Math.min(110,o.x));o.z=Math.max(-110,Math.min(110,o.z))}
-function drawForest(){
-  ctx.fillStyle='#071008';ctx.fillRect(0,0,innerWidth,innerHeight);
-  const tile=worldScale*3,ox=((-player.x*worldScale)%tile+tile)%tile,oy=((-player.z*worldScale)%tile+tile)%tile;
-  for(let x=ox-tile;x<innerWidth+tile;x+=tile)for(let y=oy-tile;y<innerHeight+tile;y+=tile){
-    ctx.fillStyle=((Math.round((x-ox)/tile)+Math.round((y-oy)/tile))&1)?'#0a150d':'#0c180f';ctx.fillRect(x,y,tile,tile)
+function toward(a,b,s,dt){const dx=b.x-a.x,dz=b.z-a.z,l=Math.hypot(dx,dz)||1;a.x+=dx/l*s*dt;a.z+=dz/l*s*dt}
+function clamp(o){o.x=Math.max(-110,Math.min(110,o.x));o.z=Math.max(-110,Math.min(110,o.z))}
+const GRID=22,CELL=10;
+function blocked(gx,gz){return Math.abs(gx)>10||Math.abs(gz)>10}
+function cell(p){return{x:Math.max(-10,Math.min(10,Math.round(p.x/CELL))),z:Math.max(-10,Math.min(10,Math.round(p.z/CELL)))}}
+function astar(start,goal){
+ const sk=start.x+','+start.z,gk=goal.x+','+goal.z;if(sk===gk)return [start];
+ const open=[{x:start.x,z:start.z,g:0,f:Math.abs(start.x-goal.x)+Math.abs(start.z-goal.z),p:null}],seen=new Map();
+ while(open.length){
+  open.sort((a,b)=>a.f-b.f);const n=open.shift(),nk=n.x+','+n.z;
+  if(seen.has(nk)&&seen.get(nk)<=n.g)continue;seen.set(nk,n.g);
+  if(n.x===goal.x&&n.z===goal.z){const path=[];let q=n;while(q){path.unshift({x:q.x*CELL,z:q.z*CELL});q=q.p}return path}
+  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+   const x=n.x+dx,z=n.z+dz;if(blocked(x,z))continue;const g=n.g+(dx&&dz?1.414:1),h=Math.abs(x-goal.x)+Math.abs(z-goal.z),k=x+','+z;
+   if(!seen.has(k)||g<seen.get(k))open.push({x,z,g,f:g+h,p:n});
   }
-  ctx.fillStyle='#24251d';const p=worldToScreen(0,22);ctx.beginPath();ctx.ellipse(p.x,p.y,worldScale*24,worldScale*5,0,0,Math.PI*2);ctx.fill();
-  for(const t of trees){const s=worldToScreen(t.x,t.z);if(s.x<-80||s.x>innerWidth+80||s.y<-80||s.y>innerHeight+80)continue;
-    ctx.fillStyle='#25190f';ctx.fillRect(s.x-5,s.y-14,10,30);ctx.fillStyle='#102317';ctx.beginPath();ctx.arc(s.x,s.y-22,27,0,Math.PI*2);ctx.fill();ctx.fillStyle='#0c1c11';ctx.beginPath();ctx.arc(s.x+9,s.y-31,18,0,Math.PI*2);ctx.fill();
-  }
+ }
+ return [start];
 }
-function drawPlayer(){
-  const s=worldToScreen(player.x,player.z);ctx.fillStyle='#9eb6d1';ctx.beginPath();ctx.arc(s.x,s.y,9,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle='#dfeaff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x+Math.sin(player.yaw)*18,s.y+Math.cos(player.yaw)*18);ctx.stroke();
-}
-function drawBot(b){
-  const s=worldToScreen(b.x,b.z);if(s.x<-60||s.x>innerWidth+60||s.y<-60||s.y>innerHeight+60)return;
-  ctx.save();ctx.globalAlpha=b.hp>0?.95:.25;ctx.fillStyle=b.color;ctx.beginPath();ctx.arc(s.x,s.y,9,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle=b.state==='charging'?'#fff':'#ffffff88';ctx.lineWidth=2;ctx.stroke();
-  ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.textAlign='center';ctx.fillText(b.name,s.x,s.y-14);
-  ctx.fillStyle='#111';ctx.fillRect(s.x-14,s.y+12,28,3);ctx.fillStyle='#71d47b';ctx.fillRect(s.x-14,s.y+12,28*Math.max(0,b.hp)/100,3);ctx.restore();
-}
-function drawRake(){
-  const s=worldToScreen(rake.x,rake.z),size=Math.max(110,Math.min(190,worldScale*8));
-  if(sheetReady)drawSprite(s.x,s.y,size,rake.targetX<rake.x);
-  if(rake.stun>0){ctx.fillStyle='#ffe66d';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('STUN',s.x,s.y-size*.58)}
-}
-function draw(){
-  drawForest();for(const b of bots)drawBot(b);drawPlayer();drawRake();
-  if(shake>0){/* visual impact is handled by the red flash and sprite state */}
-}
-function nearestTarget(){
-  const targets=[];
-  if(player.alive)targets.push({type:'player',obj:player});
-  for(const b of bots)if(b.hp>0)targets.push({type:'bot',obj:b});
-  let best=null,bestD=Infinity;
-  for(const t of targets){const d=dist(rake,t.obj);if(d<bestD){bestD=d;best=t}}
-  return best;
-}
+let path=[],pathTimer=0;
+function updatePlayer(dt){let x=(keys.KeyD?1:0)-(keys.KeyA?1:0),z=(keys.KeyS?1:0)-(keys.KeyW?1:0),l=Math.hypot(x,z);if(!l)return;const s=(keys.ShiftLeft||keys.ShiftRight)?10:6;player.x+=x/l*s*dt;player.z+=z/l*s*dt;clamp(player)}
 function updateBots(dt){
-  for(const b of bots){
-    if(b.hp<=0)continue;
-    b.cooldown=Math.max(0,b.cooldown-dt);b.stunTimer=Math.max(0,b.stunTimer-dt);
-    if(b.stunTimer>0){b.state='recovering';continue}
-    const d=dist(b,rake);
-    if(d<70&&b.cooldown<=0){
-      b.state='charging';b.charge=.7;
-    }
-    if(b.state==='charging'){
-      b.charge-=dt;moveToward(b,rake,17,dt);clampWorld(b);
-      if(dist(b,rake)<=10){
-        rake.stun=1.25;rake.state='stalking';rake.attackCooldown=Math.max(rake.attackCooldown,.7);
-        b.state='recovering';b.stunTimer=.65;b.cooldown=2.6;shake=.15;
-      }else if(b.charge<=0){
-        b.state='recovering';b.stunTimer=.35;b.cooldown=1.4;
-      }
-    }else{
-      const home={x:b.id===1?-28:b.id===2?28:0,z:b.id===1?22:b.id===2?18:58};
-      if(d<105)moveToward(b,rake,4.5,dt);
-      else moveToward(b,home,2.2,dt);
-      b.state=d<70?'ready':'idle';clampWorld(b);
-    }
-  }
-  const alive=bots.filter(b=>b.hp>0).length+(player.alive?1:0);
-  $('pc').textContent='Survivors: '+alive;
-  $('botLabel').textContent='BOTS: '+bots.filter(b=>b.hp>0).length+' READY';
-}
-function hitTarget(target,damage){
-  if(target.type==='player'){
-    player.hp=Math.max(0,player.hp-damage);
-    $('damage').style.opacity='.75';lastHp=player.hp;if(player.hp<=0)die();
-  }else{
-    target.obj.hp=Math.max(0,target.obj.hp-damage);
-    if(target.obj.hp<=0)target.obj.state='down';
-  }
+ for(const b of bots){if(b.hp<=0)continue;b.cool=Math.max(0,b.cool-dt);const d=dist(b,rake);
+  if(d<70&&b.cool<=0)b.charge=.75;
+  if(b.charge>0){b.charge-=dt;toward(b,rake,17,dt);if(dist(b,rake)<=10){rake.stun=1.25;rake.state='stunned';b.charge=0;b.cool=2.8}}
+  else {const home={x:b.name==='Maya'?-28:b.name==='Alex'?28:0,z:b.name==='Maya'?22:b.name==='Alex'?18:58};toward(b,d<105?rake:home,d<105?4.5:2.2,dt)}
+  clamp(b)
+ }
 }
 function updateRake(dt){
-  if(rake.stun>0){rake.stun=Math.max(0,rake.stun-dt);rake.state='stunned';return}
-  rake.attackCooldown=Math.max(0,rake.attackCooldown-dt);
-  const target=nearestTarget();if(!target){rake.state='idle';return}
-  rake.target=target.type;rake.targetX=target.obj.x;
-  const d=dist(rake,target.obj);
-  if(d<=11){
-    rake.state='attack';
-    if(rake.attackCooldown<=0){hitTarget(target,18);rake.attackCooldown=1.15}
-  }else{
-    rake.state=d<65?'chase':'stalking';
-    moveToward(rake,target.obj,d<65?7.2:5.0,dt);clampWorld(rake);
-  }
+ if(rake.stun>0){rake.stun-=dt;rake.state='stunned';return}
+ rake.attack=Math.max(0,rake.attack-dt);
+ const alive=bots.filter(b=>b.hp>0);if(!alive.length){rake.target=player}else{rake.target=alive.reduce((a,b)=>dist(rake,b)<dist(rake,a)?b:a)}
+ const t=rake.target;if(!t)return;
+ const d=dist(rake,t);
+ if(d<11){rake.state='attack';if(rake.attack<=0){t.hp=Math.max(0,t.hp-18);rake.attack=1.15}}
+ else {
+  rake.state=d<65?'chase':'stalking';
+  pathTimer-=dt;
+  if(pathTimer<=0){path=astar(cell(rake),cell(t));pathTimer=.28}
+  const next=path[1]||{x:t.x,z:t.z};toward(rake,next,d<65?7.2:5,dt);clamp(rake)
+ }
 }
-function movePlayer(dt){
-  let x=0,z=0;if(keys.KeyW)z-=1;if(keys.KeyS)z+=1;if(keys.KeyA)x-=1;if(keys.KeyD)x+=1;
-  const len=Math.hypot(x,z);if(!len)return;x/=len;z/=len;
-  const speed=(keys.ShiftLeft||keys.ShiftRight)?10:6;
-  player.x=Math.max(-110,Math.min(110,player.x+x*speed*dt));player.z=Math.max(-110,Math.min(110,player.z+z*speed*dt));
+function drawSprite(x,y,size){
+ if(!ready)return;
+ const cols=COLS,rows=ROWS,idx=frame%(cols*rows),sx=(idx%cols)*cw,sy=Math.floor(idx/cols)*ch;
+ ctx.drawImage(sheet,sx,sy,cw,ch,x-size/2,y-size/2,size*1.05,size);
 }
-function parry(){
-  // Parry belongs to the Rake only; player input does not parry or stun anything.
+function draw(){
+ ctx.fillStyle='#08110a';ctx.fillRect(0,0,innerWidth,innerHeight);
+ const ox=innerWidth/2-player.x*scale,oy=innerHeight/2-player.z*scale;
+ for(let x=-110;x<=110;x+=20)for(let z=-110;z<=110;z+=20){ctx.fillStyle=((x+z)/20%2?'#0b170d':'#0e1b10');ctx.fillRect(ox+x*scale,oy+z*scale,20*scale,20*scale)}
+ for(const b of bots){const x=innerWidth/2+(b.x-player.x)*scale,y=innerHeight/2+(b.z-player.z)*scale;ctx.fillStyle='#b9cce0';ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.textAlign='center';ctx.fillText(b.name,x,y-14)}
+ const px=innerWidth/2,py=innerHeight/2;ctx.fillStyle='#8eb1d0';ctx.beginPath();ctx.arc(px,py,9,0,7);ctx.fill();
+ const rx=innerWidth/2+(rake.x-player.x)*scale,ry=innerHeight/2+(rake.z-player.z)*scale;
+ drawSprite(rx,ry,150);
+ if(rake.stun>0){ctx.fillStyle='#ffe66d';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('STUN',rx,ry-85)}
 }
-function die(){if(!player.alive)return;player.alive=false;$('death').style.display='flex';$('msg').textContent=''}
-function resetGame(){
-  player.x=0;player.z=28;player.hp=100;player.alive=true;player.hitCooldown=0;
-  rake.x=0;rake.z=8;rake.stun=0;rake.attackCooldown=0;rake.state='stalking';
-  bots[0].x=-28;bots[0].z=22;bots[0].hp=100;bots[0].state='idle';bots[0].cooldown=0;
-  bots[1].x=28;bots[1].z=18;bots[1].hp=100;bots[1].state='idle';bots[1].cooldown=.5;
-  bots[2].x=0;bots[2].z=58;bots[2].hp=100;bots[2].state='idle';bots[2].cooldown=1;
-  gameTime=22;lastHp=100;$('death').style.display='none';$('damage').style.opacity='0';
-}
-function startGame(){if(started)return;started=true;$('start').style.display='none';$('status').textContent='Fake Multiplayer · 4 Survivors';$('msg').textContent='';resetGame()}
-function respawn(){resetGame();started=true}
-function generateTrees(){
-  let s=rngSeed;const rand=()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296};
-  for(let i=0;i<80;i++){const x=(rand()*220)-110,z=(rand()*220)-110;if(Math.hypot(x,z-22)<28)continue;trees.push({x,z})}
-}
-addEventListener('keydown',e=>{keys[e.code]=true});
-addEventListener('keyup',e=>keys[e.code]=false);
-addEventListener('mousedown',e=>{});
-addEventListener('mousemove',e=>{if(!player.alive)return;player.yaw=Math.atan2(e.clientX-innerWidth/2,e.clientY-innerHeight/2)});
-$('startBtn').onclick=startGame;$('respawn').onclick=respawn;generateTrees();
-
-function frame(now){
-  requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.05);last=now;
-  if(started&&player.alive){
-    movePlayer(dt);updateBots(dt);updateRake(dt);gameTime+=dt*.035;
-    if(gameTime>=24)gameTime-=24;
-  }
-  updateAnimation(dt);draw();
-  $('hp').textContent='HP: '+Math.max(0,Math.round(player.hp));
-  $('clock').textContent='Time: '+String(Math.floor(gameTime)%24).padStart(2,'0')+':'+String(Math.floor((gameTime%1)*60)).padStart(2,'0');
-  $('rstate').textContent='Rake: '+rake.state.toUpperCase();
-  const d=Number.parseFloat($('damage').style.opacity||'0');if(d>0)$('damage').style.opacity=String(Math.max(0,d-dt*3));
-}
-requestAnimationFrame(frame);
-</script>
-</body>
-</html>
+function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000);last=now;if(started&&player.alive){updatePlayer(dt);updateBots(dt);updateRake(dt);anim+=dt;if(anim>.1){anim=0;frame++}}draw();document.getElementById('hp').textContent='HP: '+player.hp;document.getElementById('state').textContent='Rake: '+rake.state.toUpperCase();document.getElementById('bots').textContent='Bots: '+bots.filter(b=>b.hp>0).length}
+requestAnimationFrame(loop);
+</script></body></html>
