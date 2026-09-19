@@ -64,6 +64,6 @@ function move(dt){let x=0,z=0;if(keys.KeyW)z-=1;if(keys.KeyS)z+=1;if(keys.KeyA)x
 addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
 addEventListener('mousedown',e=>{if(e.button===0&&player.alive&&Math.hypot(rake.x-player.x,rake.z-player.z)<=9)send(true)});
 addEventListener('mousemove',e=>{if(!player.alive)return;player.yaw=Math.atan2(e.clientX-innerWidth/2,e.clientY-innerHeight/2)});
-$('startBtn').onclick=()=>{$('msg').textContent='Connecting to local Rake server…';connect()};$('respawn').onclick=respawn;window.addEventListener('load',()=>{setTimeout(connect,150)});
+$('startBtn').onclick=()=>{if(location.protocol==='https:'){ $('msg').textContent='Opening the local Rake server…'; location.href='http://127.0.0.1:8080/'; return } $('msg').textContent='Connecting to local Rake server…';connect()};$('respawn').onclick=respawn;window.addEventListener('load',()=>{if(location.protocol==='http:'&&['127.0.0.1','localhost'].includes(location.hostname))setTimeout(connect,150)});
 function frame(now){requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.05);last=now;if(player.alive){move(dt);if(now-lastSend>50){send();lastSend=now}}updateAnimation(dt);draw();$('hp').textContent='HP: '+Math.max(0,Math.round(player.hp));const d=Number.parseFloat($('damage').style.opacity||'0');if(d>0)$('damage').style.opacity=String(Math.max(0,d-dt*3))}requestAnimationFrame(frame);
 </script></body></html>
