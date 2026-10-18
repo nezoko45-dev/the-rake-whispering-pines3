@@ -1,0 +1,22 @@
+{
+  "name": "rake-three",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone Three.js Rake survival game with a Windows server executable build",
+  "scripts": {
+    "start": "node server.js",
+    "build:exe": "pkg server.js --targets node18-win-x64 --output RakeThreeServer.exe"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [
+      "index.html"
+    ]
+  }
+}
