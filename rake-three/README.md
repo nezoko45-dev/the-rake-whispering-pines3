@@ -15,7 +15,6 @@ Double-click `BUILD-EXE.bat`, or run `npm install` followed by `npm run build:ex
 
 ## Features
 - Three.js forest scene, third-person movement and horror HUD.
-- The bundled Rake model at `assets/rake/rake.glb` is auto-loaded at startup with its embedded clips; the placeholder is used only if the model cannot be fetched.
 - The Rake automatically loads `assets/rake/rake.glb` at startup and plays its embedded animations (walk/attack/idle/stun auto-detected). If the GLB cannot be fetched, the game falls back to the built-in placeholder and you can still import any model manually.
 - Solo, AI squad and WebSocket multiplayer modes.
 - GLB/GLTF import with embedded clips, `AnimationMixer`, auto-detected walk/attack/idle/stun clips and manual clip mapping.
