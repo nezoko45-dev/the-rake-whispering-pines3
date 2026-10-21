@@ -33,11 +33,15 @@ function nextNearbyTarget(excludeId){
   return null;
 }
 function move(dt,speed){const q=rake.path[rake.i];if(!q)return;const dx=q.x-rake.x,dz=q.z-rake.z,d=Math.hypot(dx,dz);if(d<1.1){if(rake.i<rake.path.length-1)rake.i++;return}rake.x+=dx/d*speed*dt;rake.z+=dz/d*speed*dt;rake.yaw=Math.atan2(dx,dz)}
-function tick(){const now=Date.now(),dt=Math.min((now-last)/1000,.1);last=now;clockTime=(clockTime+dt*24/480)%24;const t=target();if(rake.hp<=0){rake.state='defeated';if(now>=rake.respawn){rake.hp=1000;rake.state='stalking'}}else if(now<rake.parry){rake.state='parry'}else if(now<rake.stun){rake.state='stunned'}else if(day()||!t){rake.targetId=null;rake.state='retreat';if(now>rake.nextPath){rake.path=astar(rake.x,rake.z,RSP.x,RSP.z);rake.i=Math.min(1,rake.path.length-1);rake.nextPath=now+400}move(dt,7)}else if(t.d<=8){rake.state='attack';if(now>=rake.nextAttack){
+function tick(){const now=Date.now(),dt=Math.min((now-last)/1000,.1);last=now;clockTime=(clockTime+dt*24/480)%24;const t=target();if(rake.hp<=0){rake.state='defeated';if(now>=rake.respawn){rake.hp=1000;rake.state='stalking';rake.x=RSP.x;rake.z=RSP.z;rake.path=[];rake.i=0;rake.nextPath=0;rake.stun=0;rake.parry=0;rake.targetId=null;rake.hitStreak=0}}else if(now<rake.parry){rake.state='parry'}else if(now<rake.stun){rake.state='stunned'}else if(day()||!t){rake.targetId=null;rake.state='retreat';if(now>rake.nextPath){rake.path=astar(rake.x,rake.z,RSP.x,RSP.z);rake.i=Math.min(1,rake.path.length-1);rake.nextPath=now+400}move(dt,7)}else if(t.d<=8){rake.state='attack';if(now>=rake.nextAttack){
   rake.nextAttack=now+650;
   t.p.hp=Math.max(0,t.p.hp-20);
-  // After each successful hit, immediately look for another living player within 45 studs.
-  if(t.p.hp<=0 || players.size>1) nextNearbyTarget(t.p.id);
+  // After two consecutive hits on the same target, switch to another living player within 45 studs.
+  rake.hitStreak++;
+  if(t.p.hp<=0 || rake.hitStreak>=2){
+    rake.hitStreak=0;
+    if(players.size>1) nextNearbyTarget(t.p.id);
+  }
 }
 }else{rake.state=t.d<=45?'chase':'stalking';if(now>rake.nextPath){rake.path=astar(rake.x,rake.z,t.p.x,t.p.z);rake.i=Math.min(1,rake.path.length-1);rake.nextPath=now+250}move(dt,t.d<=45?19:7)}
 const snap=JSON.stringify({type:'snapshot',clockTime,rake:{x:rake.x,z:rake.z,yaw:rake.yaw,state:rake.state,hp:rake.hp},players:[...players.values()].map(p=>({id:p.id,x:p.x,z:p.z,yaw:p.yaw,hp:p.hp}))});for(const p of players.values())if(p.ws.readyState===1)p.ws.send(snap)}
