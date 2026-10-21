@@ -26,6 +26,23 @@ const player={id:'local',x:0,z:18,yaw:0,hp:100,root:makeRoot(0x9ab4c6),model:nul
 const rake={id:'rake',x:0,z:-12,yaw:0,hp:1000,state:'stalking',root:makeRoot(0x17201a),model:null,mixer:null,actions:{},active:null,stunUntil:0,attackCooldown:0};rake.root.scale.setScalar(1.5);scene.add(rake.root);
 const bots=[];for(let i=0;i<3;i++){const b={id:'ai-'+i,x:(i-1)*5,z:22+i*3,yaw:0,hp:100,root:makeRoot([0x9db9d1,0xc2ad91,0xa3c6a2][i]),model:null,mixer:null,actions:{},active:null,chargeTime:0,cooldown:1+i*.8,ai:true};scene.add(b.root);bots.push(b)}
 const remote=new Map(),keys={},clock=new THREE.Clock();let mode='solo',started=false,ws=null,playerId=null,mouseDown=false,modelURL=null,chargeFlash=0;
+async function loadBundledRake(){
+  const candidates=['/assets/rake/rake.glb','../assets/rake/rake.glb','assets/rake/rake.glb'];
+  for(const url of candidates){
+    try{
+      const res=await fetch(url);
+      if(!res.ok)continue;
+      const buf=await res.arrayBuffer();
+      const gltf=await new GLTFLoader().parseAsync(buf,'');
+      fitModel(gltf,rake);
+      modelURL=url;
+      document.getElementById('modelstatus').textContent='Bundled Rake loaded ('+gltf.animations.length+' clips) — import another GLB to override.';
+      return;
+    }catch(e){}
+  }
+  document.getElementById('modelstatus').textContent='Bundled Rake GLB not found — placeholder in use. Import a model below.';
+}
+loadBundledRake();
 function distance(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
 function face(a,b){a.yaw=Math.atan2(b.x-a.x,b.z-a.z);a.root.rotation.y=a.yaw}
 function moveToward(a,b,speed,dt){const dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz)||1;a.x+=dx/d*speed*dt;a.z+=dz/d*speed*dt;face(a,b)}
