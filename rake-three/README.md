@@ -15,6 +15,7 @@ Double-click `BUILD-EXE.bat`, or run `npm install` followed by `npm run build:ex
 
 ## Features
 - Three.js forest scene, third-person movement and horror HUD.
+- The Rake automatically loads `assets/rake/rake.glb` at startup and plays its embedded animations (walk/attack/idle/stun auto-detected). If the GLB cannot be fetched, the game falls back to the built-in placeholder and you can still import any model manually.
 - Solo, AI squad and WebSocket multiplayer modes.
 - GLB/GLTF import with embedded clips, `AnimationMixer`, auto-detected walk/attack/idle/stun clips and manual clip mapping.
 - Imported models are normalized by bounding box and attached under a grounded character root to prevent floating.
@@ -22,3 +23,5 @@ Double-click `BUILD-EXE.bat`, or run `npm install` followed by `npm run build:ex
 - WebSocket server shares player transforms and basic Rake combat state.
 
 The multiplayer mode requires the EXE/server to be running on the host. Other players must connect to the host machine's reachable address and port 8080; firewall/router rules may be needed. Three.js and its addons load from jsDelivr, so an internet connection is needed in the browser. This is a starter implementation; server-side authoritative AI combat and remote-client interpolation can be expanded further.
+
+When running the built EXE, keep the `assets` folder (containing `rake/rake.glb`) next to `RakeThreeServer.exe` so the Rake model can be served at `/assets/rake/rake.glb`.
