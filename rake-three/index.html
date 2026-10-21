@@ -37,6 +37,22 @@ function populateAnimationSelectors(names){for(const kind of ['walk','attack','i
 function mapped(actor,kind){const select=actor===rake?document.getElementById(kind):null;return select?.value||actor.animKinds?.[kind]||autoName(Object.keys(actor.actions),kind)}
 function playMapped(a,kind){const key=mapped(a,kind);if(key&&a.actions[key])setAction(a,key)}
 async function loadModel(file,actor=rake){const url=URL.createObjectURL(file);document.getElementById('modelstatus').textContent='Loading '+file.name+'…';try{const gltf=await new GLTFLoader().loadAsync(url);fitModel(gltf,actor);document.getElementById('modelstatus').textContent='Loaded '+file.name+' · '+gltf.animations.length+' animations';if(actor===rake)modelURL=url;else URL.revokeObjectURL(url)}catch(e){document.getElementById('modelstatus').textContent='Could not load model: '+e.message;URL.revokeObjectURL(url)}}
+async function autoLoadRakeModel(){
+  const status=document.getElementById('modelstatus');
+  for(const url of ['assets/rake/rake.glb','../assets/rake/rake.glb']){
+    try{
+      const res=await fetch(url);
+      if(!res.ok)continue;
+      const blob=await res.blob();
+      if(blob.size<64)continue;
+      await loadModel(new File([blob],'rake.glb',{type:'model/gltf-binary'}),rake);
+      return true;
+    }catch(e){}
+  }
+  status.textContent='Rake GLB not found — using the built-in placeholder until a model is imported.';
+  return false;
+}
+autoLoadRakeModel();
 document.getElementById('pick').onclick=()=>document.getElementById('file').click();document.getElementById('file').onchange=e=>{const f=e.target.files[0];if(f)loadModel(f)};document.getElementById('apply').onclick=()=>{for(const k of ['walk','attack','idle','stun']){const val=document.getElementById(k).value;if(val)rake.animKinds[k]=val}playMapped(rake,'idle')};
 function astar(start,goal){const cell=3,coord=p=>({x:Math.round(p.x/cell),z:Math.round(p.z/cell)}),s=coord(start),g=coord(goal),key=p=>p.x+','+p.z,open=[{...s,g:0,f:Math.abs(s.x-g.x)+Math.abs(s.z-g.z)}],came=new Map(),cost=new Map([[key(s),0]]),closed=new Set();while(open.length){open.sort((a,b)=>a.f-b.f);const n=open.shift(),nk=key(n);if(closed.has(nk))continue;closed.add(nk);if(n.x===g.x&&n.z===g.z){let p=n,out=[];while(p){out.unshift({x:p.x*cell,z:p.z*cell});p=came.get(key(p))}return out}for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){if(!dx&&!dz){continue}const q={x:n.x+dx,z:n.z+dz};if(Math.abs(q.x)>38||Math.abs(q.z)>38)continue;const k=key(q),ng=n.g+(dx&&dz?1.414:1);if(ng<(cost.get(k)??Infinity)){cost.set(k,ng);came.set(k,n);open.push({...q,g:ng,f:ng+Math.abs(q.x-g.x)+Math.abs(q.z-g.z)})}}}return[goal]}
 const botPaths=new Map(),pathTimers=new Map();
