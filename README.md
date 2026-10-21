@@ -12,6 +12,7 @@ Fresh multiplayer Three.js Rake game.
 - Rake stalking/searching speed: 7.
 - Rake chase speed inside 45 studs: 19.
 - Backend owns multiplayer player state, Rake health, combat and Rake movement.
+- The Three.js app auto-loads the Rake model from assets/rake/rake.glb and plays its embedded animations.
 - The browser is the game UI and the Windows EXE is built by GitHub Actions.
 
 Controls: WASD move, mouse look, Shift charge, left click stunstick.
