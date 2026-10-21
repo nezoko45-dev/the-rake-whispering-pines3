@@ -4,7 +4,7 @@ const srv=http.createServer(app),wss=new WebSocketServer({server:srv,path:'/ws'}
 const SPAWN={x:0,z:22},RSP={x:0,z:12},CELL=3,trees=[];let seed=1337;const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};for(let i=0;i<36;i++)trees.push({x:(rnd()-.5)*230,z:(rnd()-.5)*230});
 const key=(x,z)=>x+','+z,blocked=(x,z)=>{const wx=x*CELL,wz=z*CELL;if(Math.hypot(wx, wz-22)<7)return false;return trees.some(t=>Math.hypot(wx-t.x,wz-t.z)<2.5)};
 function astar(sx,sz,gx,gz){const ax=Math.round(sx/CELL),az=Math.round(sz/CELL),bx=Math.round(gx/CELL),bz=Math.round(gz/CELL),open=[{x:ax,z:az,g:0,f:Math.abs(ax-bx)+Math.abs(az-bz)}],came=new Map(),sc=new Map([[key(ax,az),0]]),closed=new Set();while(open.length){open.sort((a,b)=>a.f-b.f);const c=open.shift(),ck=key(c.x,c.z);if(closed.has(ck))continue;closed.add(ck);if(c.x===bx&&c.z===bz){const o=[];let k=ck;while(k){const [x,z]=k.split(',').map(Number);o.push({x:x*CELL,z:z*CELL});k=came.get(k)}return o.reverse()}for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){if(!dx&&!dz)continue;const nx=c.x+dx,nz=c.z+dz;if(Math.abs(nx)>76||Math.abs(nz)>76||blocked(nx,nz))continue;if(dx&&dz&&(blocked(c.x+dx,c.z)||blocked(c.x,c.z+dz)))continue;const nk=key(nx,nz),ng=c.g+(dx&&dz?1.414:1);if(ng<(sc.get(nk)??Infinity)){sc.set(nk,ng);came.set(nk,ck);open.push({x:nx,z:nz,g:ng,f:ng+Math.abs(nx-bx)+Math.abs(nz-bz)})}}}return[{x:gx,z:gz}]}
-const rake={x:0,z:12,yaw:0,state:'stalking',path:[],i:0,nextPath:0,stun:0,parry:0,nextAttack:0,targetId:null,hp:1000,respawn:0};
+const rake={x:0,z:12,yaw:0,state:'stalking',path:[],i:0,nextPath:0,stun:0,parry:0,nextAttack:0,targetId:null,hp:1000,respawn:0,hitStreak:0};
 function day(){return clockTime>=6&&clockTime<18}
 function target(){
   const current=rake.targetId ? players.get(rake.targetId) : null;
@@ -19,7 +19,7 @@ function target(){
     const n=Math.hypot(p.x-rake.x,p.z-rake.z);
     if(n<d){d=n;b=p}
   }
-  if(b)rake.targetId=b.id;
+  if(b){if(rake.targetId!==b.id)rake.hitStreak=0;rake.targetId=b.id;}
   return b?{p:b,d}:null;
 }
 function nextNearbyTarget(excludeId){
@@ -29,7 +29,7 @@ function nextNearbyTarget(excludeId){
     const n=Math.hypot(p.x-rake.x,p.z-rake.z);
     if(n<=45&&n<d){d=n;b=p}
   }
-  if(b){rake.targetId=b.id;return {p:b,d};}
+  if(b){if(rake.targetId!==b.id)rake.hitStreak=0;rake.targetId=b.id;return {p:b,d};}
   return null;
 }
 function move(dt,speed){const q=rake.path[rake.i];if(!q)return;const dx=q.x-rake.x,dz=q.z-rake.z,d=Math.hypot(dx,dz);if(d<1.1){if(rake.i<rake.path.length-1)rake.i++;return}rake.x+=dx/d*speed*dt;rake.z+=dz/d*speed*dt;rake.yaw=Math.atan2(dx,dz)}
