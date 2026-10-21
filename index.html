@@ -120,7 +120,17 @@ function drawSprite(x,y,size){
   ctx.drawImage(spriteCanvas,x-size/2,y-size/2,size*1.05,size);
   ctx.restore();
 }
-function draw(){ctx.fillStyle='#08110a';ctx.fillRect(0,0,innerWidth,innerHeight);const ox=innerWidth/2-player.x*scale,oy=innerHeight/2-player.z*scale;for(let x=-110;x<=110;x+=20)for(let z=-110;z<=110;z+=20){ctx.fillStyle=((x+z)/20%2?'#0b170d':'#0e1b10');ctx.fillRect(ox+x*scale,oy+z*scale,20*scale,20*scale)}for(const b of bots){const x=innerWidth/2+(b.x-player.x)*scale,y=innerHeight/2+(b.z-player.z)*scale;ctx.fillStyle='#b9cce0';ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.textAlign='center';ctx.fillText(b.name,x,y-14)}const px=innerWidth/2,py=innerHeight/2;ctx.fillStyle='#8eb1d0';ctx.beginPath();ctx.arc(px,py,9,0,7);ctx.fill();const rx=innerWidth/2+(rake.x-player.x)*scale,ry=innerHeight/2+(rake.z-player.z)*scale;drawSprite(rx,ry,150);if(rake.stun>0){ctx.fillStyle='#ffe66d';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('STUN',rx,ry-85)}}
+function draw(){ctx.fillStyle='#08110a';ctx.fillRect(0,0,innerWidth,innerHeight);const ox=innerWidth/2-player.x*scale,oy=innerHeight/2-player.z*scale;for(let x=-110;x<=110;x+=20)for(let z=-110;z<=110;z+=20){ctx.fillStyle=((x+z)/20%2?'#0b170d':'#0e1b10');ctx.fillRect(ox+x*scale,oy+z*scale,20*scale,20*scale)}
+if(!netMode)for(const b of bots){const x=innerWidth/2+(b.x-player.x)*scale,y=innerHeight/2+(b.z-player.z)*scale;ctx.fillStyle='#b9cce0';ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.textAlign='center';ctx.fillText(b.name,x,y-14)}
+else for(const a of remote.values()){const x=innerWidth/2+(a.x-player.x)*scale,y=innerHeight/2+(a.z-player.z)*scale;ctx.fillStyle='#c9b8d8';ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.textAlign='center';ctx.fillText('player',x,y-14)}
+const px=innerWidth/2,py=innerHeight/2;ctx.fillStyle='#8eb1d0';ctx.beginPath();ctx.arc(px,py,9,0,7);ctx.fill();
+ctx.strokeStyle=player.charge>=1?'#ffe66d':'#c8ff8b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+Math.sin(player.yaw)*(20+player.swing*80),py+Math.cos(player.yaw)*(20+player.swing*80));ctx.stroke();
+if(player.charge>0){ctx.strokeStyle='#ffe66d';ctx.lineWidth=4;ctx.beginPath();ctx.arc(px,py,14,-Math.PI/2,-Math.PI/2+player.charge/1.2*Math.PI*2);ctx.stroke()}
+const rx=innerWidth/2+(rake.x-player.x)*scale,ry=innerHeight/2+(rake.z-player.z)*scale;drawSprite(rx,ry,150);
+ctx.fillStyle='#000a';ctx.fillRect(rx-35,ry-95,70,8);ctx.fillStyle='#d76d63';ctx.fillRect(rx-35,ry-95,70*rake.hp/1000,8);
+if(rake.stun>0){ctx.fillStyle='#ffe66d';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('STUN',rx,ry-85)}
+else if(rake.state==='parry'){ctx.fillStyle='#ffe66d';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('PARRIED',rx,ry-85)}
+else if(rake.hp<=0){ctx.fillStyle='#d76d63';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('DEFEATED',rx,ry-85)}}
 function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000);last=now;if(started&&player.alive){updatePlayer(dt);updateBots(dt);updateRake(dt);anim+=dt;if(anim>.1){anim=0;frame++}}draw();document.getElementById('hp').textContent='HP: '+player.hp;document.getElementById('state').textContent='Rake: '+rake.state.toUpperCase();document.getElementById('bots').textContent='Bots: '+bots.filter(b=>b.hp>0).length}
 requestAnimationFrame(loop);
 </script></body></html>
