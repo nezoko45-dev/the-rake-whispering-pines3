@@ -5,8 +5,8 @@
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050806;color:#fff;font-family:Arial}canvas{display:block;width:100%;height:100%;image-rendering:auto}.hud{position:fixed;top:15px;left:18px;z-index:5;text-shadow:0 2px 6px #000}.title{font-weight:900;font-size:25px;letter-spacing:5px}.line{margin-top:5px}.screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#030504}.box{text-align:center}.box h1{font-size:48px;letter-spacing:8px}.btn{padding:14px 28px;border:0;border-radius:5px;font-weight:900;cursor:pointer}.controls{position:fixed;right:15px;bottom:15px;z-index:5;font:12px monospace;background:#0009;padding:8px}</style></head>
 <body>
 <canvas id="game"></canvas>
-<div class="hud"><div class="title">THE RAKE</div><div class="line" id="state">Rake: STALKING</div><div class="line" id="hp">HP: 100</div><div class="line" id="bots">Bots: 3</div></div>
-<div class="controls">WASD · Shift sprint · Bots charge/stun Rake</div>
+<div class="hud"><div class="title">THE RAKE</div><div class="line" id="state">Rake: STALKING</div><div class="line" id="rhp">Rake HP: 1000</div><div class="line" id="hp">HP: 100</div><div class="line" id="bots">Bots: 3</div><div class="line" id="hint"></div></div>
+<div class="controls">WASD move · Mouse aim · Shift charge · Click stunstick · <span id="net">SOLO</span></div>
 <div id="start" class="screen"><div class="box"><h1>THE RAKE</h1><p>WHISPERING PINES · A* BOT CHASE</p><button class="btn" id="startBtn">ENTER THE FOREST</button></div></div>
 <script>
 const canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),sheet=new Image();
@@ -21,17 +21,61 @@ sheet.onload=()=>{ready=true;COLS=8;ROWS=5;cw=sheet.naturalWidth/COLS;ch=sheet.n
 // The JPG stays untouched. We crop one exact cell at a time and use screen
 // compositing so pure black from the JPG contributes no visible pixels.
 // This avoids destructive pixel-erasing on the compressed JPG.
-const player={x:0,z:34,hp:100,alive:true};
-const rake={x:0,z:-18,state:'stalking',stun:0,attack:0,target:null};
+const player={x:0,z:34,hp:100,alive:true,yaw:0,charge:0,stun:0,attackCool:0,swing:0,respawnQueued:false};
+const rake={x:0,z:-18,state:'stalking',stun:0,parry:0,attack:0,target:null,hp:1000,respawn:12};
 const bots=[{x:-28,z:22,hp:100,charge:0,cool:0,name:'Maya'},{x:28,z:18,hp:100,charge:0,cool:.8,name:'Alex'},{x:0,z:58,hp:100,charge:0,cool:1.4,name:'Sam'}];
 const keys={};let started=false,last=performance.now(),scale=18;
 addEventListener('resize',resize);resize();
 function resize(){const d=Math.min(devicePixelRatio||1,2);canvas.width=innerWidth*d;canvas.height=innerHeight*d;ctx.setTransform(d,0,0,d,0,0)}
 addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
-document.getElementById('startBtn').onclick=()=>{started=true;document.getElementById('start').style.display='none'};
+let ws=null,playerId=null,netMode=false,lastSend=0,pendingAttack=null;const remote=new Map();
+addEventListener('mousemove',e=>{player.yaw=Math.atan2(e.clientX-innerWidth/2,e.clientY-innerHeight/2)});
+addEventListener('mousedown',e=>{if(e.button!==0||!started)return;const charged=player.charge>=1;if(charged)player.charge=0;attack(charged)});
+document.getElementById('startBtn').onclick=()=>{started=true;document.getElementById('start').style.display='none';connect()};
 function dist(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
 function toward(a,b,s,dt){const dx=b.x-a.x,dz=b.z-a.z,l=Math.hypot(dx,dz)||1;a.x+=dx/l*s*dt;a.z+=dz/l*s*dt}
 function clamp(o){o.x=Math.max(-110,Math.min(110,o.x));o.z=Math.max(-110,Math.min(110,o.z))}
+function angDiff(a,b){return Math.abs(Math.atan2(Math.sin(a-b),Math.cos(a-b)))}
+function hint(t){const el=document.getElementById('hint');el.textContent=t;clearTimeout(hint.t);hint.t=setTimeout(()=>el.textContent='',2400)}
+function attack(charged){
+  if(player.stun>0||player.attackCool>0)return;
+  player.attackCool=charged?.9:.45;player.swing=.18;
+  if(netMode){pendingAttack=charged;return}
+  if(rake.hp<=0){hint('The Rake is down');return}
+  if(dist(player,rake)>12){hint('Miss — too far');return}
+  const to=Math.atan2(rake.x-player.x,rake.z-player.z),diff=angDiff(player.yaw,to);
+  if(charged){
+    if(diff<0.28){player.stun=1.5;rake.parry=1;hint('PARRIED — the Rake saw you coming')}
+    else{rake.hp=Math.max(0,rake.hp-90);rake.stun=2.5;hint('Charged hit! 90 damage')}
+  }else if(diff<0.55){rake.hp=Math.max(0,rake.hp-45);rake.stun=2.5;hint('Stunstick hit! 45 damage · 2.5s stun')}
+  else hint('Miss — face the Rake');
+}
+function netTick(){const now=performance.now();if(ws&&ws.readyState===1&&(now-lastSend>50||pendingAttack!==null)){lastSend=now;const m={type:'input',x:player.x,z:player.z,yaw:player.yaw};if(pendingAttack!==null){m.attack=true;m.charged=pendingAttack;pendingAttack=null}ws.send(JSON.stringify(m))}}
+function connect(){
+  try{
+    const proto=location.protocol==='https:'?'wss:':'ws:';
+    ws=new WebSocket(proto+'//'+location.host+'/ws');
+    ws.onopen=()=>{netMode=true;document.getElementById('net').textContent='ONLINE'};
+    ws.onclose=()=>{netMode=false;document.getElementById('net').textContent='SOLO'};
+    ws.onerror=()=>{netMode=false};
+    ws.onmessage=e=>{const m=JSON.parse(e.data);
+      if(m.type==='welcome')playerId=m.id;
+      else if(m.type==='snapshot'){
+        rake.x=m.rake.x;rake.z=m.rake.z;rake.hp=m.rake.hp;rake.state=m.rake.state;
+        const seen=new Set();
+        for(const p of m.players){
+          if(p.id===playerId){player.hp=p.hp;continue}
+          seen.add(p.id);let a=remote.get(p.id);if(!a){a={x:p.x,z:p.z,yaw:p.yaw,hp:p.hp};remote.set(p.id,a)}
+          Object.assign(a,p);
+        }
+        for(const id of [...remote.keys()])if(!seen.has(id))remote.delete(id);
+      }else if(m.type==='event'){
+        if(m.kind==='parry'&&m.by===playerId){player.stun=1.5;hint('PARRIED — the Rake saw you coming')}
+        else if(m.kind==='hit'&&m.by===playerId)hint(m.charged?'Charged hit! 90 damage':'Stunstick hit! 45 damage · 2.5s stun');
+      }
+    };
+  }catch{netMode=false}
+}
 const CELL=10;
 function blocked(gx,gz){return Math.abs(gx)>10||Math.abs(gz)>10}
 function cell(p){return{x:Math.max(-10,Math.min(10,Math.round(p.x/CELL))),z:Math.max(-10,Math.min(10,Math.round(p.z/CELL)))}}
