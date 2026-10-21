@@ -66,7 +66,7 @@ const bots=[
  {x:28,z:18,yaw:0,hp:100,charge:0,cool:.8,name:'Alex',root:makeHumanoid(0xc2ad91)},
  {x:0,z:58,yaw:0,hp:100,charge:0,cool:1.4,name:'Sam',root:makeHumanoid(0xa3c6a2)}];
 bots.forEach(b=>scene.add(b.root));
-const rake={x:0,z:-18,yaw:0,hp:1000,state:'stalking',stun:0,parry:0,attackCool:0,respawn:12,root:new THREE.Group(),model:null,mixer:null,actions:{},animKinds:{},active:null};
+const rake={x:0,z:-18,yaw:0,hp:1000,state:'stalking',stun:0,parry:0,attackCool:0,respawn:12,hitStreak:0,target:null,root:new THREE.Group(),model:null,mixer:null,actions:{},animKinds:{},active:null};
 scene.add(rake.root);
 const remote=new Map(),keys={};let started=false,last=performance.now();
 
@@ -191,15 +191,19 @@ function updateBots(dt){
 function updateRake(dt){
  const r=rake;
  if(r.hp<=0){r.state='defeated';r.respawn-=dt;
-  if(r.respawn<=0){r.hp=1000;r.respawn=12;r.state='stalking';r.x=0;r.z=-18}return}
+  if(r.respawn<=0){r.hp=1000;r.respawn=12;r.state='stalking';r.x=0;r.z=-18;r.yaw=0;r.stun=0;r.parry=0;r.attackCool=0;r.hitStreak=0;r.target=null}return}
  if(r.parry>0){r.parry-=dt;r.state='parry';return}
  if(r.stun>0){r.stun-=dt;r.state='stunned';return}
  r.attackCool=Math.max(0,r.attackCool-dt);
- const alive=bots.filter(b=>b.hp>0);
- const target=alive.length?alive.reduce((a,b)=>dist(r,b)<dist(r,a)?b:a):player;
+ const cands=bots.filter(b=>b.hp>0);if(player.hp>0)cands.push(player);
+ let target=(r.target&&r.target.hp>0&&dist(r,r.target)<=45)?r.target:null;
+ if(!target){target=cands.length?cands.reduce((a,b)=>dist(r,b)<dist(r,a)?b:a):null;if(target!==r.target)r.hitStreak=0}
+ r.target=target;if(!target)return;
  const d=dist(r,target);
  if(d<11){r.state='attack';faceToward(r,target);
-  if(r.attackCool<=0){target.hp=Math.max(0,target.hp-18);r.attackCool=1.15}}
+  if(r.attackCool<=0){target.hp=Math.max(0,target.hp-18);r.attackCool=1.15;r.hitStreak++;
+   if(r.hitStreak>=2){const others=cands.filter(c=>c!==target&&dist(r,c)<=45);
+    if(others.length){r.target=others.reduce((a,b)=>dist(r,b)<dist(r,a)?b:a);r.hitStreak=0;hint('The Rake switches target')}}}}
  else{r.state=d<45?'chase':'stalking';moveToward(r,target,d<45?19:7,dt)}
 }
 function rakeAnim(){
