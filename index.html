@@ -10,7 +10,8 @@
 <div id="start" class="screen"><div class="box"><h1>THE RAKE</h1><p>WHISPERING PINES · A* BOT CHASE</p><button class="btn" id="startBtn">ENTER THE FOREST</button></div></div>
 <script>
 const canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),sheet=new Image();
-sheet.src='https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/the%20rake%20spritesheet.jpg';
+sheet.src='the rake spritesheet.jpg';
+sheet.onerror=()=>{sheet.onerror=null;sheet.src='https://raw.githubusercontent.com/nezoko45-dev/the-rake-whispering-pines3/main/the%20rake%20spritesheet.jpg'};
 let ready=false,COLS=8,ROWS=5,cw=1,ch=1,frame=0,anim=0;
 const spriteFrames=[];
 sheet.onload=()=>{ready=true;COLS=8;ROWS=5;cw=sheet.naturalWidth/COLS;ch=sheet.naturalHeight/ROWS;};
