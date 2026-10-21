@@ -7,7 +7,6 @@ const { WebSocketServer } = require('ws');
 const app = express();
 const root = process.pkg ? path.dirname(process.execPath) : __dirname;
 app.use(express.static(root));
-app.use('/assets', express.static(path.join(root, '..', 'assets')));
 for (const dir of [path.join(root, 'assets'), path.join(root, '..', 'assets')]) {
   try { if (fs.existsSync(path.join(dir, 'rake', 'rake.glb'))) { app.use('/assets', express.static(dir)); break; } } catch {}
 }
